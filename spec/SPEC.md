@@ -59,7 +59,7 @@ An **edge** is one field on a family's records that points at another family. It
 
 | Field | Rules |
 |---|---|
-| `field` | the record field carrying the reference. For a `nested` edge, a path with `[]` into an array-of-dicts (`entries[].item_id`) |
+| `field` | the record field carrying the reference. For a `nested` edge, a path into an array-of-dicts, written `entries[].item_id`. The `[]` step and its absence (`entries.item_id`) name ONE edge and canonicalize to one key, so either spelling resolves; the `[]` form is preferred in prose because it makes the array step explicit |
 | `target` | a family `key`, an **array of keys** (a union family - the reference tree's item ids live across `weapons/`, `armors/`, `resources/`, ...), or `virtual` (section 5) |
 | `kind` | one of `ref`, `refs`, `nested`, `virtual`, `literal` (section 5) |
 | `required` | OPTIONAL boolean, default `true`. `true`: a dangling target is a refusal. `false`: acknowledged, never refused |
