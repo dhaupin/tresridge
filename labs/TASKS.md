@@ -4,6 +4,44 @@
 
 Last updated: 2026-11-17.
 
+## Session 2026-11-17 (d) - the marketing PRD (audience-first, receipts-first)
+
+The user's frame, and it reframes the whole project: "this isn't necessarily what
+you or I want. It's what's best for folks with scattered tres, so we can help them
+become orderly and logical, sanity again." That is the marketing brief. The subject
+is not tresridge's adoption; it is the developer's sanity.
+
+**`labs/prd-marketing.md`** - audience-first, in the house voice (dense, receipts for
+every claim, honest non-goals):
+
+- **The audience, named:** "the scattered tree" - a content directory grown one record
+  at a time, conventions not declarations, references as unchecked strings, a lint
+  nobody dares touch. The reference deployment is this condition, measured.
+- **The pain, in the user's own words:** five sentences they already say, all traced to
+  one root - *the system's default is silence* ("Godot loaded it fine").
+- **The wedge:** `graph` on a tree you never described. Zero commitment, immediately
+  useful, no declaration required. The user gets their graph before they get a standard.
+- **Claims with receipts.** Every claim cites a measurement; a claim with no receipt is
+  cut. The meta-claim is the best one: our own tooling is held to the discipline we sell
+  (the vocabulary gate is a CI step, not a slogan).
+- **Honest non-claims:** not a schema system, not a loader, not a platform, not a
+  refactor, not family membership.
+- **Sanity, not stars.** The leading success signal is the dangling count on a new
+  user's first run. If it is zero for most trees, the wedge is wrong and we should say so.
+
+**Four fictions caught while writing it** (the doc is itself held to its own rule):
+
+1. Cited "73 edges drafted, 14 fields need declaring" - the measured values are **57
+   inferred, 16 need declaring**. Fixed.
+2. Cited "344 edge instances" from the probe - my tool measures 405 declared instances
+   (373 resolving, 32 literal) because the probe used a convention-only count. Removed
+   the unit ambiguity rather than pick a number that flatters.
+3. Wrote a ten-minute script claiming `doctor` prints violations with **no declaration**.
+   Ran it: `doctor` without a declaration reports the residue and says "declaration not
+   found"; only `lint` judges. Rewrote the script to the verified flow.
+4. Shipped `npx tresridge` in the script while the package is **not on npm** (M2
+   pending). Added the publication-status note so the page cannot promise a 404.
+
 ## Session 2026-11-17 (c) - M2: the spec becomes checkable (enforcement + extension)
 
 The user's frame: "once we define a structure, we have to enforce it - what better
