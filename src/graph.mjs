@@ -46,7 +46,7 @@ export function inferDeclaration(tree) {
   const families = tree.families.map((f) => {
     const schemas = schemaCounts.get(f.key);
     const uniform = schemas && schemas.size === 1 ? [...schemas.keys()][0] : '';
-    return { key: f.key, schema: uniform, idPrefix: '' };
+    return { key: f.key, schema: uniform, idPrefix: inferPrefix(tree, f.key) };
   });
 
   const edges = [];
@@ -81,6 +81,24 @@ export function inferDeclaration(tree) {
     }).sort((a, b) => b.count - a.count),
   };
   return { declaration, residue };
+}
+
+/**
+ * Infer a family's idPrefix from its records: the stem's common prefix beyond the
+ * declared id. `achievement_bloom_contained.tres` (id `bloom_contained`) implies
+ * prefix `achievement_`. Returns '' when no record declares an id or none agree.
+ */
+function inferPrefix(tree, family) {
+  let prefix = null;
+  for (const r of tree.records) {
+    if (r.family !== family || !r.idDeclared) continue;
+    const stem = r.file.split('/').pop().replace(/\.tres$/, '');
+    if (!stem.endsWith(r.id)) return '';
+    const p = stem.slice(0, stem.length - r.id.length);
+    if (prefix === null) prefix = p;
+    else if (prefix !== p) return '';
+  }
+  return prefix || '';
 }
 
 /** Read a tree and infer in one call. */

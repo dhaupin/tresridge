@@ -95,14 +95,23 @@ A single convention seeds a declaration:
 
 A conforming lint refuses with a one-line error naming the record, the field, and the broken norm the moment it sees the violation. Never a deep stack trace and never silent success. The refusals that carry the spec:
 
-| Refusal | Fires when |
-|---|---|
-| `undeclared-edge` | a field ends `_id`/`_ids` and no edge declares it, and it is not `literal` |
-| `dangling-ref` | a declared edge names a target no record in the target family carries |
-| `name-dir-mismatch` | a family `key` disagrees with its directory name |
-| `filename-id-mismatch` | a record's declared id disagrees with its filename stem |
-| `cycle` | a chain (`next_quest_id`, a gateway pair) returns to its start |
-| `duplicate-edge` | two edges declare the same `(family, field)` |
+<!-- BEGIN GENERATED: section 7 refusals -->
+| Refusal | Severity | Spec | Fires when |
+|---|---|---|---|
+| `undeclared-family` | violation | 2 | a directory holds records but no family declares it |
+| `name-dir-mismatch` | violation | 2 | a family key disagrees with the directory it is declared for |
+| `schema-mismatch` | violation | 2 | a family declares a schema and a record in it carries a different one |
+| `filename-id-mismatch` | violation | 3 | a record's declared id disagrees with its filename stem |
+| `undeclared-edge` | violation | 7 | a field ends _id/_ids and no edge declares it, and it is not literal |
+| `dangling-ref` | violation | 7 | a declared edge names a target no record in the target family carries |
+| `cycle` | violation | 7 | a declared scalar ref chain returns to its start |
+| `duplicate-edge` | violation | 4 | two edges declare the same (family, field) |
+| `unknown-rule` | violation | 7 | a profile or baseline names a refusal code the vocabulary does not carry |
+| `baseline-expired` | violation | 9 | a baseline's expiry has passed; the acknowledged refusal is no longer excused |
+| `baseline-unmatched` | warning | 9 | a baseline excuses a refusal that no longer occurs; reported so it can be retired |
+<!-- END GENERATED: section 7 refusals -->
+
+**The vocabulary is the one source.** `spec/refusals.json` carries every code; `src/rules.mjs` implements every code; the battery exercises every code; and `scripts/check-vocabulary.mjs` refuses when any of the three disagree, in either direction. A code in the codebase but not the vocabulary is drift; a code in the vocabulary but not the codebase is a promise with no check; a code neither the battery nor a host case exercises is unproven. This is what makes "define it, enforce it" mechanical rather than aspirational.
 
 `required: false` downgrades `dangling-ref` to a warning - the field is acknowledged, the target is not asserted. It never silences `undeclared-edge`.
 
@@ -122,13 +131,46 @@ silently. The declaration itself is validated by the same rule set as the tree
 
 The `graph` verb is the adoption on-ramp: it DERIVES `relations.json` from an existing tree, so a host starts from truth. Exit contract: `0` clean, `1` violations, `2` usage. The `--against` diff is the drift gate: it fails when the declared graph and the inferred graph disagree, so a declaration that has fallen behind the corpus is loud, not silent.
 
-## 9. Lifecycle norms (all hosts)
+## 9. Lifecycle norms, baselines, and enforcement
+
+### Lifecycle norms
 
 - **Explicit declarations only.** An edge resolves because `relations.json` enumerates it. Inference seeds a declaration (`graph`); it never replaces one.
 - **One source per concept.** The declaration is the only place an edge is stated. A consumer (loader, docs, site) reads it; no consumer restates it.
 - **Refusals are additive.** A new family or edge never changes an existing record's verdict. A non-additive change carries a MIGRATION-NOTE (section 10).
-- **Coverage is checked, not assumed.** Every `_id`-suffixed field on a family's records must be a declared edge or explicitly `literal`. This is what stops an undeclared field from accumulating.
+- **Coverage is checked, not assumed.** Every `_id`-suffixed field on a family's records must be a declared edge or explicitly `literal`.
 - **`--against` in CI.** A host runs `graph --against relations.json` so the declaration cannot drift from the corpus without a red gate.
+
+### Baselines (mitigations with teeth)
+
+A host sometimes must ship with a known refusal it cannot fix yet. The spec allows this **on the record, never silently**. A **baseline** is a row in the declaration:
+
+```json
+{ "code": "dangling-ref", "record": "loot_tables/loot_bandit.tres", "field": "currency_id",
+  "reason": "gold is a virtual currency resolved at load; tracked in SYN-4471",
+  "expires": "2026-12-31" }
+```
+
+- `code` MUST be in the vocabulary (section 7) or the baseline is itself refused (`unknown-rule`).
+- `reason` MUST be non-empty. A silent suppression is politeness theater; a baseline without a reason is refused.
+- `record` and `field` are optional matchers; absent, the baseline matches any.
+- **`expires` is the teeth.** An expired baseline stops excusing: the refusal returns, and the lint additionally reports `baseline-expired`. A mitigation with no expiry is a permanent hole; hosts MAY omit it only when the row carries a MIGRATION-NOTE.
+- **An unmatched baseline is reported** (`baseline-unmatched`, a warning), so a stale excuse is visible and can be retired rather than quietly accumulating.
+
+This is the difference between a baseline and a suppression: a suppression hides a refusal; a baseline *records* one, on the record, with an owner and a clock, and reports itself when it no longer applies.
+
+### Enforcement is mechanical, not aspirational
+
+"Define a structure, then enforce it" is only true if the definition and the enforcement cannot drift. tresridge enforces that with one gate, `scripts/check-vocabulary.mjs`, which refuses when:
+
+| Drift | Meaning |
+|---|---|
+| a code in the registry but not the vocabulary | an undocumented refusal |
+| a code in the vocabulary but not the registry | a promise with no check |
+| a code neither the battery nor a host case exercises | an unproven refusal |
+| the section 7 table disagrees with the vocabulary | the spec's prose drifted from its data |
+
+The section 7 table is **generated** from `spec/refusals.json` between markers; editing the table by hand is drift the gate refuses. The vocabulary is JSON, so a non-JS host reads the same source the JS lint does.
 
 ## 10. Versioning and the MIGRATION-NOTE convention
 
@@ -144,10 +186,49 @@ A new host joins by answering three questions, in order, never by forking the gr
 
 A host that declares nothing new inherits the whole spec by conforming to `relations.json` alone.
 
-## 12. Non-goals
+## 12. Extending the lint (the profile surface)
+
+A host extends the lint by **adding rules**, never by forking it. `lint(tree, decl, { extraRules, vocabulary })` takes host rules; the CLI loads them with `--rules <module>`:
+
+```js
+// my-profile.mjs - a host's private rules
+export const rules = [
+  { code: 'my-project/no-empty-name', severity: 'violation', scope: 'tree',
+    run(ctx) {
+      const out = [];
+      for (const r of ctx.tree.records) {
+        if (/^name\s*=\s*""/.test(r.fields.get('name') || '')) {
+          out.push({ code: 'my-project/no-empty-name', record: r.file, detail: 'name is empty' });
+        }
+      }
+      return out;
+    } },
+];
+```
+
+Two laws bind a host rule:
+
+1. **It may not invent a code.** The code MUST be in the vocabulary the host handed the lint. A host rule whose code is not in the vocabulary is itself refused (`unknown-rule`). To add a code, the host adds it to its own `refusals.json` - the vocabulary is data, so this is a data edit, not a fork.
+2. **It may not weaken a standing refusal.** Host rules ADD findings. There is no hook that removes one; a refusal is excused only by a baseline (section 9), on the record, with a reason and a clock.
+
+A **profile** is a named bundle of host rules plus a vocabulary extension, shipped as a module a host pins. The `profiles/` directory holds the reference shape. Profiles are how a family (a Godot project, a docs tree, a service config set) layers its own laws on the shared grammar without touching the grammar.
+
+## 13. Transport and the independence boundary
+
+tresridge is a **spec and its handler**, not a service. The relation it governs is data at rest - a declaration plus a tree - so the transport question is not "what protocol" but "what does a host exchange, and with what guarantee."
+
+- **The unit of exchange is the declaration** (`relations.json`) and the **verdict** (`lint --json`). Both are plain JSON. Any host in any language can produce one and consume the other.
+- **The verdict is a document, not a log.** `lint --json` emits `{ schemaVersion, families, records, edges, violations, warnings }` with stable codes from the vocabulary, so a consumer (a CI gate, a dashboard, another repo's doctor) reads a code, not a paragraph.
+- **No network in the core.** The lint reads files and writes JSON. It opens no socket. A host that wants a fleet view composes verdicts; the composition is the host's, and a composer (a `govstruct`-shaped roll-up, a CI matrix) may exist without tresridge depending on it.
+- **Independence.** tresridge may be embedded (import `src/lint.mjs`), invoked (the CLI), or reimplemented (the vocabulary and the conformance cases are language-neutral). A host that reimplements it passes `conformance/cases/` and is conforming; it need not depend on this repo at all.
+
+**Non-goals for transport in v1:** no daemon, no server, no registry protocol, no live graph subscription. Distribution stays git plus npm (section 12).
+
+## 14. Non-goals
 
 - **No record registry or marketplace.** Distribution stays: git repos plus npm.
 - **No schema system.** tresridge declares edges, not fields. The schema stays the host's.
 - **No runtime loader.** The spec governs the declaration and the refusals; each host keeps its own loader and substrate.
 - **No inference at check time.** The rule seeds a declaration; it never replaces one.
 - **No cross-host graph merge in v1.** Each host's graph stands alone; remote graph sources may add later as an explicit additive version, never silently.
+- **No suppression without a record.** There is no `--ignore`, no `--force`, no inline `# nolint`. A refusal is excused by a baseline with a reason and a clock, or it is not excused.

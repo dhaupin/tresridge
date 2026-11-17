@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "what": "The codes the godot profile ADDS to the shared vocabulary. A host merges these into the vocabulary it hands the lint; a profile code that is not here is refused as unknown-rule.",
+  "codes": [
+    {
+      "code": "godot/id-required-when-prefixed",
+      "severity": "violation",
+      "section": "profile",
+      "detail": "a family declares an idPrefix, so every record in it MUST carry an explicit id line"
+    }
+  ]
+}

@@ -22,6 +22,18 @@
 - **The lint NEVER infers at check time** (SPEC section 6). Inference lives in
   `src/graph.mjs`, which SEEDS a declaration; it never replaces one. A check that guesses
   is the brittle frame this project exists to end.
+- **The lint holds no refusals of its own.** Every refusal lives in `src/rules.mjs`,
+  the registry; `src/lint.mjs` is a facade over it. The vocabulary
+  (`spec/refusals.json`), the registry, and the battery are ONE source, held together
+  by `scripts/check-vocabulary.mjs` - it refuses an undocumented refusal, a promise
+  with no check, an unproven refusal, or a section 7 table that drifted. Never add a
+  refusal by editing the spec table: edit the vocabulary, then `vocab:write`.
+- **Hosts extend by adding rules, never by forking.** `--rules <module>` (or
+  `opts.extraRules`). A host rule may not invent a code (it MUST be in the vocabulary)
+  and may not weaken a standing refusal (rules ADD findings). `profiles/` is the shape.
+- **No suppression, ever.** There is no `--ignore`, no `--force`, no inline disable. A
+  refusal is excused by a baseline with a reason and a clock (SPEC section 9), or not
+  at all.
 - **The tool carries its own battery.** `scripts/gen-refusal-matrix.mjs` materializes each
   fixture, runs the REAL lint over the bytes, and REFUSES ITS OWN RUN (exit 1) when any
   observed verdict disagrees with expectation. `labs/refusal-matrix.tresridge.json` is the

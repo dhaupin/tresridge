@@ -1,7 +1,7 @@
 // The .tres tree reader: walk a record tree into families and records.
 // Host-neutral: it knows nothing about any particular game's vocabulary.
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, basename, relative } from 'node:path';
 
 /** Walk `root` and return every `.tres` file path, recursively. */
@@ -31,14 +31,19 @@ export function walkTres(root) {
 export function parseTres(file) {
   const txt = readFileSync(file, 'utf8');
   const scriptClass = txt.match(/script_class="(\w+)"/)?.[1] || '';
-  const id = txt.match(/^id\s*=\s*"([^"]*)"/m)?.[1] || basename(file, '.tres');
+  const declared = txt.match(/^id\s*=\s*"([^"]*)"/m)?.[1];
+  // `idDeclared` separates "no id line" (the stem IS the id) from "an id line that
+  // disagrees with the stem" (SPEC section 3, filename-id-mismatch). Collapsing the
+  // two would make an id-less record unrefusable.
+  const idDeclared = declared !== undefined;
+  const id = idDeclared ? declared : basename(file, '.tres');
   const fields = new Map();
   for (const m of txt.matchAll(/^\s*"?([a-zA-Z_][a-zA-Z0-9_]*)"?\s*[:=]\s*(.+)$/gm)) {
     const key = m[1];
     if (key === 'id' || key === 'script') continue;
     fields.set(key, m[2].trim());
   }
-  return { id, scriptClass, fields };
+  return { id, idDeclared, scriptClass, fields };
 }
 
 /**
@@ -58,9 +63,9 @@ export function readTree(root) {
   for (const file of files) {
     const rel = relative(root, file).split('\\').join('/');
     const family = rel.split('/')[0];
-    const { id, scriptClass, fields } = parseTres(file);
+    const { id, idDeclared, scriptClass, fields } = parseTres(file);
     const key = `${family}:${id}`;
-    records.push({ file: rel, family, id, key, scriptClass, fields });
+    records.push({ file: rel, family, id, idDeclared, key, scriptClass, fields });
     if (!idsByFamily.has(family)) idsByFamily.set(family, new Set());
     idsByFamily.get(family).add(id);
     if (scriptClass && !schemaByFamily.has(family)) schemaByFamily.set(family, scriptClass);

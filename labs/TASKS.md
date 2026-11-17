@@ -4,6 +4,61 @@
 
 Last updated: 2026-11-17.
 
+## Session 2026-11-17 (c) - M2: the spec becomes checkable (enforcement + extension)
+
+The user's frame: "once we define a structure, we have to enforce it - what better
+way than an npm spec... concentrate on the spec/lint and extendability." The first
+cut failed that test in a way worth naming: the refusals were **hardcoded inline** in
+`lint.mjs` while the spec promised them in a table, and the two had already drifted.
+
+**The four drifts found (all real, all silent):**
+
+| Drift | Direction |
+|---|---|
+| `undeclared-family` | in the code, NOT in the spec table |
+| `schema-mismatch` | in the code, NOT in the spec table |
+| `name-dir-mismatch` | in the spec table, NOT implemented |
+| `filename-id-mismatch` | in the spec table, NOT implemented |
+
+A spec whose table and code can disagree is prose, not enforcement. So the refusals
+became data and the drift became impossible.
+
+**What landed:**
+
+- **`spec/refusals.json`** - the shared vocabulary. Plain JSON, so a non-JS host reads
+  what the JS lint reads. Eleven codes, each with severity and spec section.
+- **`src/rules.mjs`** - the rule registry. `src/lint.mjs` is now a facade; the lint
+  holds no refusal of its own. `runRules()` is a pipeline; `validateDeclaration()` runs
+  the `declaration`-scope entries.
+- **`scripts/check-vocabulary.mjs`** - the gate. Refuses, in either direction: a code in
+  the registry but not the vocabulary; a code in the vocabulary but not the registry; a
+  code the battery never exercises; a section 7 table that disagrees. `--write`
+  regenerates the table between markers.
+- **Baselines (mitigations with teeth).** A refusal can be excused on the record, with a
+  non-empty reason and an optional expiry. Expired -> `baseline-expired` (the refusal
+  returns). Unmatched -> `baseline-unmatched` (retire it). There is no `--ignore`,
+  `--force`, or inline disable anywhere.
+- **The extension surface.** `--rules <module>` on the CLI, `opts.extraRules` in the
+  API, a `rules` verb to print the vocabulary. Two laws: a host rule may not invent a
+  code, and may not weaken a standing refusal. `profiles/godot/` is the reference.
+- **SPEC sections 9 (baselines + enforcement), 12 (extending), 13 (transport), 14
+  (non-goals).** Section 13 states the independence boundary: the unit of exchange is
+  the declaration and the verdict, both plain JSON; no network in the core; a host may
+  embed, invoke, or reimplement.
+
+**Two bugs the new rules found in the tool itself, on the real tree:**
+
+- `filename-id-mismatch` fired 149 times because it ignored `idPrefix` - the filename is
+  `prefix + id` (`achievement_bloom_contained.tres` carries id `bloom_contained`). Fixed,
+  and `graph` now infers the prefix. 149 -> 0.
+- The baseline filter collected `expired` notes but never returned them, so
+  `baseline-expired` vanished. The battery refused the run and caught it.
+
+**The honest result.** With the enforcement layer live, linting the reference tree still
+yields **the same 6 violations, zero false positives** - and the two newly-implemented
+rules stayed silent, because the corpus is genuinely clean there. Battery 10 -> 15 rows,
+all observed honest. `npm run check` is now battery + drift gate + vocabulary gate.
+
 ## Session 2026-11-17 (b) - M1 lands: the probe becomes a tool that proves itself
 
 The CLI is real: `bin/cli.mjs` + `src/{tres,lint,graph}.mjs`, zero runtime deps. The

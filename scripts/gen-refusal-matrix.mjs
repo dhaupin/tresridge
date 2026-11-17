@@ -95,6 +95,41 @@ const cases = [
     extraEdges: [{ family: 'npcs', field: 'home_zone_id', target: 'zones', kind: 'ref' }],
     expect: { declErrors: ['duplicate-edge'] },
   },
+  {
+    id: 'name-dir-mismatch',
+    // a declared family that matches no directory in the tree
+    families: [
+      { key: 'npcs', schema: 'NpcData', idPrefix: '' },
+      { key: 'zones', schema: 'ZoneData', idPrefix: '' },
+      { key: 'ghosts', schema: 'GhostData', idPrefix: '' },
+    ],
+    expect: { codes: ['name-dir-mismatch'] },
+  },
+  {
+    id: 'filename-id-mismatch',
+    // the record DECLARES an id that disagrees with its filename stem
+    add: { 'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_wrong"\nhome_zone_id = "zn_haven"\n' },
+    expect: { codes: ['filename-id-mismatch'] },
+  },
+  {
+    id: 'unknown-rule',
+    // a baseline naming a code the vocabulary does not carry
+    baselines: [{ code: 'not-a-real-code', record: 'x', reason: 'should be refused' }],
+    expect: { codes: ['unknown-rule'] },
+  },
+  {
+    id: 'baseline-expired',
+    // a baseline whose expiry has passed stops excusing: the refusal returns
+    add: { 'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = "zn_missing"\n' },
+    baselines: [{ code: 'dangling-ref', field: 'home_zone_id', reason: 'known gap', expires: '2000-01-01' }],
+    expect: { codes: ['baseline-expired', 'dangling-ref'] },
+  },
+  {
+    id: 'baseline-unmatched',
+    // a baseline that matches nothing is reported so it can be retired
+    baselines: [{ code: 'dangling-ref', record: 'npcs/npc_ghost.tres', reason: 'stale excuse' }],
+    expect: { codes: [], warnCodes: ['baseline-unmatched'] },
+  },
 ];
 
 /** Read every file under a dir into a { relPath: contents } map. */
@@ -120,7 +155,10 @@ function materialize(c) {
   let edges = [...base.edges];
   if (c.extraEdges) edges = edges.concat(c.extraEdges);
   if (c.overrideEdges) edges = c.overrideEdges;
-  const decl = { schemaVersion: 1, families: base.families, edges };
+  const families = c.families || base.families;
+  const decl = { schemaVersion: 1, families, edges };
+  if (c.baselines) decl.baselines = c.baselines;
+  if (c.schemaVersion !== undefined) decl.schemaVersion = c.schemaVersion;
   const declPath = join(dir, 'relations.json');
   writeFileSync(declPath, JSON.stringify(decl, null, 2));
   return { dir, declPath, decl };
@@ -157,6 +195,12 @@ for (const c of cases) {
     const want = [...expect.codes].sort();
     if (JSON.stringify(want) !== JSON.stringify(observed.violations)) {
       problems.push(`codes: expected ${JSON.stringify(want)}, observed ${JSON.stringify(observed.violations)}`);
+    }
+  }
+  if (expect.warnCodes !== undefined) {
+    const want = [...expect.warnCodes].sort();
+    if (JSON.stringify(want) !== JSON.stringify(observed.warnings)) {
+      problems.push(`warnCodes: expected ${JSON.stringify(want)}, observed ${JSON.stringify(observed.warnings)}`);
     }
   }
   if (expect.declErrors !== undefined) {

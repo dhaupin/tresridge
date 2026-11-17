@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "families": [
+    {
+      "key": "npcs",
+      "schema": "NpcData",
+      "idPrefix": ""
+    },
+    {
+      "key": "zones",
+      "schema": "ZoneData",
+      "idPrefix": ""
+    }
+  ],
+  "edges": [
+    {
+      "family": "npcs",
+      "field": "home_zone_id",
+      "target": "zones",
+      "kind": "ref"
+    }
+  ],
+  "baselines": [
+    {
+      "code": "dangling-ref",
+      "field": "home_zone_id",
+      "reason": "known gap",
+      "expires": "2000-01-01"
+    }
+  ]
+}

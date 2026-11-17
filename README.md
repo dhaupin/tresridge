@@ -35,6 +35,8 @@ npx tresridge lint <tree> --json             # { families, records, edges, viola
 npx tresridge graph <tree>                   # infer a first-draft declaration from the tree
 npx tresridge graph <tree> --out rel.json    # write the draft
 npx tresridge doctor <tree>                  # the summary pass: families, edges, residue, violations
+npx tresridge rules                          # the refusal vocabulary this lint carries
+npx tresridge lint <tree> --rules p.mjs      # add a host profile's rules
 ```
 
 Exit contract: `0` clean, `1` violations, `2` usage.
@@ -49,6 +51,37 @@ A single convention resolves most edges with no declaration:
 > `giver_npc_id` → `npc` · `source_zone_id` → `zones` · `secondary_loot_table_id` → `loot_tables`
 
 This is **inference, not the contract** - it seeds a declaration. Measured on the reference deployment: the rule resolves **344 edges** and leaves **14 fields** to declare by hand.
+
+## Enforcement is mechanical
+
+A spec you do not enforce is prose. tresridge makes the definition and the enforcement the same source:
+
+- **`spec/refusals.json`** is the shared refusal vocabulary - plain JSON, so a non-JS host reads what the JS lint reads.
+- **`src/rules.mjs`** is the rule registry. The lint holds no refusals of its own; it is a pipeline over the registry.
+- **`scripts/check-vocabulary.mjs`** is the gate. It refuses when the vocabulary, the registry, and the battery disagree in either direction - an undocumented refusal, a promise with no check, an unproven refusal, or a section 7 table that drifted from its data.
+
+The SPEC's refusal table is **generated** from the vocabulary between markers. Editing it by hand is drift the gate catches.
+
+### Baselines: mitigations with teeth
+
+A host that must ship with a known refusal records it, on the record, with a reason and a clock:
+
+```json
+{ "code": "dangling-ref", "field": "currency_id",
+  "reason": "gold resolves at load; tracked in SYN-4471", "expires": "2026-12-31" }
+```
+
+An expired baseline stops excusing (`baseline-expired`). An unmatched one is reported (`baseline-unmatched`). There is no `--ignore`, no `--force`, no inline suppression - a refusal is excused with a reason and a clock, or it is not excused.
+
+### Extending without forking
+
+A host adds rules, never edits the grammar:
+
+```
+tresridge lint <tree> --rules profiles/godot/index.mjs
+```
+
+Two laws bind a host rule: it may not invent a code (the code MUST be in the vocabulary), and it may not weaken a standing refusal (host rules ADD findings). `profiles/` holds the reference shape.
 
 ## Status
 

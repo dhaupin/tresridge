@@ -20,8 +20,10 @@
     "test": "node test/battery.mjs",
     "matrix:gen": "node scripts/gen-refusal-matrix.mjs",
     "matrix:check": "node scripts/gen-refusal-matrix.mjs --check",
-    "check": "npm test && npm run matrix:check",
-    "prepublishOnly": "npm run check"
+    "check": "npm test && npm run matrix:check && npm run vocab:check",
+    "prepublishOnly": "npm run check",
+    "vocab:check": "node scripts/check-vocabulary.mjs",
+    "vocab:write": "node scripts/check-vocabulary.mjs --write"
   },
   "keywords": [
     "tres",

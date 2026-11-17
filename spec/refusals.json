@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "what": "The shared refusal vocabulary. Every refusal a conforming lint emits MUST appear here, and every code here MUST have a rule in src/rules.mjs. SPEC section 7's table is GENERATED from this file; a code the vocabulary does not name is itself a refusal (E_CODE_UNKNOWN). This is the one source: the spec table, the registry, and the battery all read it, so the three can never drift.",
+  "severity": {
+    "violation": "refuses the tree (exit 1)",
+    "warning": "acknowledged; reported, never refuses on its own"
+  },
+  "codes": [
+    {
+      "code": "undeclared-family",
+      "severity": "violation",
+      "section": "2",
+      "detail": "a directory holds records but no family declares it"
+    },
+    {
+      "code": "name-dir-mismatch",
+      "severity": "violation",
+      "section": "2",
+      "detail": "a family key disagrees with the directory it is declared for"
+    },
+    {
+      "code": "schema-mismatch",
+      "severity": "violation",
+      "section": "2",
+      "detail": "a family declares a schema and a record in it carries a different one"
+    },
+    {
+      "code": "filename-id-mismatch",
+      "severity": "violation",
+      "section": "3",
+      "detail": "a record's declared id disagrees with its filename stem"
+    },
+    {
+      "code": "undeclared-edge",
+      "severity": "violation",
+      "section": "7",
+      "detail": "a field ends _id/_ids and no edge declares it, and it is not literal"
+    },
+    {
+      "code": "dangling-ref",
+      "severity": "violation",
+      "section": "7",
+      "detail": "a declared edge names a target no record in the target family carries"
+    },
+    {
+      "code": "cycle",
+      "severity": "violation",
+      "section": "7",
+      "detail": "a declared scalar ref chain returns to its start"
+    },
+    {
+      "code": "duplicate-edge",
+      "severity": "violation",
+      "section": "4",
+      "detail": "two edges declare the same (family, field)"
+    },
+    {
+      "code": "unknown-rule",
+      "severity": "violation",
+      "section": "7",
+      "detail": "a profile or baseline names a refusal code the vocabulary does not carry"
+    },
+    {
+      "code": "baseline-expired",
+      "severity": "violation",
+      "section": "9",
+      "detail": "a baseline's expiry has passed; the acknowledged refusal is no longer excused"
+    },
+    {
+      "code": "baseline-unmatched",
+      "severity": "warning",
+      "section": "9",
+      "detail": "a baseline excuses a refusal that no longer occurs; reported so it can be retired"
+    }
+  ]
+}

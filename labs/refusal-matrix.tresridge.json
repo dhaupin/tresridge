@@ -99,11 +99,73 @@
     {
       "id": "duplicate-edge",
       "observed": {
-        "violations": [],
+        "violations": [
+          "duplicate-edge"
+        ],
         "warnings": [],
         "declErrors": [
           "duplicate-edge"
         ]
+      },
+      "status": "agree"
+    },
+    {
+      "id": "name-dir-mismatch",
+      "observed": {
+        "violations": [
+          "name-dir-mismatch"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "filename-id-mismatch",
+      "observed": {
+        "violations": [
+          "filename-id-mismatch"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "unknown-rule",
+      "observed": {
+        "violations": [
+          "unknown-rule"
+        ],
+        "warnings": [
+          "baseline-unmatched"
+        ],
+        "declErrors": [
+          "unknown-rule"
+        ]
+      },
+      "status": "agree"
+    },
+    {
+      "id": "baseline-expired",
+      "observed": {
+        "violations": [
+          "baseline-expired",
+          "dangling-ref"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "baseline-unmatched",
+      "observed": {
+        "violations": [],
+        "warnings": [
+          "baseline-unmatched"
+        ],
+        "declErrors": []
       },
       "status": "agree"
     }

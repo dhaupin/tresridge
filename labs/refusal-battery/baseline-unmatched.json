@@ -1,0 +1,13 @@
+{
+  "id": "baseline-unmatched",
+  "base": false,
+  "add": {},
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [],
+    "warnCodes": [
+      "baseline-unmatched"
+    ]
+  }
+}
