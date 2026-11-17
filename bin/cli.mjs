@@ -6,13 +6,13 @@ import { resolve, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readTree } from '../src/tres.mjs';
 import { lint, validateDeclaration, SCHEMA_VERSION } from '../src/lint.mjs';
-import { graph } from '../src/graph.mjs';
+import { graph, diffDeclaration } from '../src/graph.mjs';
 import { VOCABULARY } from '../src/vocabulary.mjs';
 
 const USAGE = `tresridge - the .tres relation standard
 
   tresridge lint <tree> [--decl <file>] [--rules <module>] [--json]
-  tresridge graph <tree> [--out <file>] [--json]
+  tresridge graph <tree> [--out <file>] [--against <file>] [--json]
   tresridge doctor <tree> [--decl <file>] [--rules <module>]
   tresridge rules [--json]                # the refusal vocabulary this lint carries
 
@@ -87,6 +87,19 @@ try {
 
   if (cmd === 'graph') {
     const { declaration, residue, tree } = graph(root);
+      const against = flag('--against');
+      if (against) {
+        const decl = JSON.parse(readFileSync(against, 'utf8'));
+        const { added, removed } = diffDeclaration(declaration, decl, residue);
+        if (has('--json')) {
+          console.log(JSON.stringify({ added, removed }, null, 2));
+        } else {
+          for (const e of added) console.log(`  + ${e.family}.${e.field} -> ${JSON.stringify(e.target)} (${e.kind})`);
+          for (const e of removed) console.log(`  - ${e.family}.${e.field} -> ${JSON.stringify(e.target)} (${e.kind})`);
+          console.log(`tresridge graph --against: ${added.length} added, ${removed.length} removed`);
+        }
+        process.exit(added.length || removed.length ? 1 : 0);
+      }
     const out = flag('--out');
     if (out) writeFileSync(out, JSON.stringify(declaration, null, 2) + '\n');
     if (has('--json')) { console.log(JSON.stringify({ declaration, residue }, null, 2)); }

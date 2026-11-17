@@ -128,11 +128,14 @@ tresridge graph <tree> [--out relations.json] [--json]   # infer a first-draft d
 tresridge doctor <tree> [--decl relations.json]          # the summary pass
 ```
 
-`lint` and `doctor` read a declaration (default `relations.json`); `graph` writes one. A
-`--against` drift verb is the M1 addition (TASKS): it diffs the inferred graph against the
-committed declaration and fails on drift, so a declaration cannot fall behind the corpus
-silently. The declaration itself is validated by the same rule set as the tree
-(`validateDeclaration`), so a malformed declaration refuses before a single record is read.
+`lint` and `doctor` read a declaration (default `relations.json`); `graph` writes one. The
+`--against <file>` drift verb diffs the inferred graph against the committed declaration and
+fails (exit `1`) on drift, so a declaration cannot fall behind the corpus silently. Drift is
+two-directional: `added` is an edge the tree has that no row names; `removed` is a row naming
+an edge the tree no longer has. Two classes of row are exempt, because they are human
+decisions rather than inference: a `literal` row (never inferred), and a row for a field in
+`graph`'s residue (inference could not resolve it, so a human declared it).
+The declaration itself is validated by the same rule set as the tree (`validateDeclaration`), so a malformed declaration refuses before a single record is read.
 
 The `graph` verb is the adoption on-ramp: it DERIVES `relations.json` from an existing tree, so a host starts from truth. Exit contract: `0` clean, `1` violations, `2` usage. The `--against` diff is the drift gate: it fails when the declared graph and the inferred graph disagree, so a declaration that has fallen behind the corpus is loud, not silent.
 

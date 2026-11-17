@@ -118,3 +118,37 @@ export function graph(root) {
   const { declaration, residue } = inferDeclaration(tree);
   return { tree, declaration, residue };
 }
+
+/**
+ * Diff an inferred graph against a committed declaration - the drift gate.
+ *
+ * A declaration that has fallen behind the corpus is loud, not silent: a new
+ * edge in the tree that no row names, or a row naming an edge the tree no
+ * longer has, is a drift. Returns { added, removed } keyed by `family.field`.
+ *
+ * Only RESOLVING edges are compared. Residue fields are, by definition, ones
+ * inference could not resolve - a human declared them - so their presence in
+ * the declaration but not the inference is expected, not drift.
+ */
+export function diffDeclaration(inferred, declared, residue = { undeclared: [] }) {
+  const key = (e) => `${e.family}.${String(e.field).replace(/\[\]/g, '')}`;
+  const seen = new Map((declared.edges || []).map((e) => [key(e), e]));
+  const added = [];
+  const removed = [];
+  for (const e of inferred.edges || []) {
+    if (!seen.has(key(e))) added.push({ family: e.family, field: e.field, target: e.target, kind: e.kind });
+  }
+  const inferredKeys = new Set((inferred.edges || []).map(key));
+  // A residue field is one inference could not resolve; a human declared it.
+  // Its presence in the declaration but not the inference is the point, not drift.
+  const residueKeys = new Set((residue.undeclared || []).map(key));
+  for (const e of declared.edges || []) {
+    if (inferredKeys.has(key(e))) continue;
+    if (residueKeys.has(key(e))) continue;
+    // A `literal` row is a human decision about a non-reference; inference never
+    // produces one, so it is never drift.
+    if (e.kind === 'literal') continue;
+    removed.push({ family: e.family, field: e.field, target: e.target, kind: e.kind });
+  }
+  return { added, removed };
+}
