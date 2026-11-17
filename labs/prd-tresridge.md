@@ -4,7 +4,7 @@
 **Role:** the relation arm. It owns the edge grammar and the resolution contract that any content graph exchanges under.
 **Package:** `tresridge` @ 0.1.0 (node >=20, ESM, zero runtime deps). NOT yet on npm (`npm view tresridge` = E404); the 0.1.x manual publish is the one outstanding M0 item.
 **Core law:** declare the edge, resolve or refuse. The edge declaration is the shared-facts column; everything else about a record is host-owned and never refused.
-**Family:** the struct family - **govstruct** (govern), **packstruct** (spec), **memstruct** (memory), **gamestruct** (agents + a11y), **eyestruct** (watch), **poststruct** (audit), **prestruct** (SSR), **freestruct** (SSG). tresridge is the **relation arm**: it owns how records reference each other. The forges are **monoforge** and **coreforge**; **railyard** is the composer. The interop law: no host imports a sibling to check a sibling; it invokes the sibling's public CLI.
+**Family model:** borrowed from the struct family - **govstruct** (govern), **packstruct** (spec), **memstruct** (memory), **gamestruct** (agents + a11y), **eyestruct** (watch), **poststruct** (audit), **prestruct** (SSR), **freestruct** (SSG); forges **monoforge** / **coreforge**, composer **railyard**. tresridge adopts their **model** (the spec/labs/conformance layout, the refusal battery, the no-fiction generator, the named refusals, the 0/1/2 exit ladder) but is **not on the family roster**: it is a **synmergia project** - no govstruct registry entry, no `members/tresridge.json`, no family-domain site. It owns how records reference each other; the interop law is that no host imports a sibling to check a sibling, it invokes the sibling's public CLI.
 
 ---
 

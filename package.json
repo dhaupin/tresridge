@@ -4,15 +4,34 @@
   "description": "The .tres relation standard: one edge grammar, one resolution contract, many hosts.",
   "type": "module",
   "license": "MIT",
-  "engines": { "node": ">=20" },
-  "bin": { "tresridge": "bin/cli.mjs" },
-  "files": ["bin", "src", "spec", "profiles"],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "tresridge": "bin/cli.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "spec",
+    "profiles"
+  ],
   "scripts": {
     "test": "node test/battery.mjs",
     "matrix:gen": "node scripts/gen-refusal-matrix.mjs",
     "matrix:check": "node scripts/gen-refusal-matrix.mjs --check",
-    "check": "npm test && npm run matrix:check"
+    "check": "npm test && npm run matrix:check",
+    "prepublishOnly": "npm run check"
   },
-  "keywords": ["tres", "godot", "graph", "relations", "spec"],
-  "repository": { "type": "git", "url": "git+https://github.com/dhaupin/tresridge.git" }
+  "keywords": [
+    "tres",
+    "godot",
+    "graph",
+    "relations",
+    "spec"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dhaupin/tresridge.git"
+  }
 }

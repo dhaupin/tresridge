@@ -4,7 +4,7 @@ The `.tres` relation standard. **One edge grammar + one resolution contract, man
 
 **Core law:** declare the edge, resolve or refuse. The edge declaration is the shared-facts column; everything else about a record is host-owned and never refused.
 
-**New here?** Start with [`labs/prd-tresridge.md`](labs/prd-tresridge.md) - the product contract. It carries the frozen v1 grammar (family + edge tables, four edge kinds, the resolution rule), the general/reference split, and the conformance CLI surface.
+**New here?** Start with [`labs/prd-tresridge.md`](labs/prd-tresridge.md) - the product contract. It carries the frozen v1 grammar (family + edge tables, five edge kinds, the resolution rule), the general/reference split, and the conformance CLI surface.
 
 This repo ships the normative spec ([`spec/SPEC.md`](spec/SPEC.md)) plus a zero-dependency lint CLI that kills the worst relation-authoring class at author time: a field that points at a record which does not exist, or a `_id` field no one declared. Every host that keeps a tree of records uses the same core check.
 
@@ -56,11 +56,13 @@ This is **inference, not the contract** - it seeds a declaration. Measured on th
 
 **M0** spec text - *done* · **M1** the CLI (`lint` / `graph` / `doctor`) - *done* · **M2** conformance harness + npm publish - *partial* (battery + cases ship; publish pending) · **M3** the reference deployment adopts - *designed*.
 
-## Family
+## Family model, not family membership
 
-tresridge is the **relation arm** of the struct family. Prose law is [poststruct](https://github.com/dhaupin/poststruct)'s; pack shape is [packstruct](https://github.com/dhaupin/packstruct)'s; record shape is [memstruct](https://github.com/dhaupin/memstruct)'s; the roster is [govstruct](https://github.com/dhaupin/govstruct)'s; **edges are tresridge's**.
+tresridge keeps the **struct family's model** - this layout (`spec/` + `labs/` + `conformance/` + `AGENTS.md` + `DEPLOY.md`), the refusal battery, the no-fiction generator, the named refusals, the 0/1/2 exit ladder. The conventions are borrowed from [packstruct](https://github.com/dhaupin/packstruct) (the spec arm) and [memstruct](https://github.com/dhaupin/memstruct) (the spec+handler sibling this repo's layout mirrors).
 
-The interop law that governs every crossing: **no host imports a sibling to check a sibling; it invokes the sibling's public CLI.** tresridge orchestrates none of it - it is the grammar they share.
+It is **not a member of the family roster**. tresridge is a **synmergia project**: it is not in [govstruct](https://github.com/dhaupin/govstruct)'s registry, has no `members/tresridge.json`, and serves no family-domain site. It keeps the model without joining the roster.
+
+The interop law the family shares: **no host imports a sibling to check a sibling; it invokes the sibling's public CLI.**
 
 ## License
 
