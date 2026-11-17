@@ -1,0 +1,14 @@
+{
+  "id": "nested-ref-undeclared",
+  "base": false,
+  "add": {
+    "loot_tables/loot_a.tres": "[resource]\nscript_class=\"LootData\"\nid = \"loot_a\"\nentries = [{\n\"item_id\": \"zn_haven\",\n\"rival_id\": \"zn_haven\"\n}]\n"
+  },
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "undeclared-edge"
+    ]
+  }
+}

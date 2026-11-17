@@ -110,6 +110,107 @@
       "status": "agree"
     },
     {
+      "id": "nested-ref-ok",
+      "observed": {
+        "violations": [],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "nested-ref-dangling",
+      "observed": {
+        "violations": [
+          "dangling-ref"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "nested-ref-undeclared",
+      "observed": {
+        "violations": [
+          "undeclared-edge"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "virtual-ref-ok",
+      "observed": {
+        "violations": [],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "virtual-ref-dangling-stem",
+      "observed": {
+        "violations": [
+          "dangling-ref"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "virtual-no-pattern",
+      "observed": {
+        "violations": [
+          "unknown-rule"
+        ],
+        "warnings": [],
+        "declErrors": [
+          "unknown-rule"
+        ]
+      },
+      "status": "agree"
+    },
+    {
+      "id": "nested-spec-array-form",
+      "observed": {
+        "violations": [
+          "dangling-ref"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "baseline-unknown-key",
+      "observed": {
+        "violations": [
+          "unknown-rule"
+        ],
+        "warnings": [],
+        "declErrors": [
+          "unknown-rule"
+        ]
+      },
+      "status": "agree"
+    },
+    {
+      "id": "baseline-glob-scoped",
+      "observed": {
+        "violations": [
+          "dangling-ref"
+        ],
+        "warnings": [
+          "baseline-unmatched"
+        ],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
       "id": "name-dir-mismatch",
       "observed": {
         "violations": [

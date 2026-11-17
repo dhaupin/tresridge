@@ -1,3 +1,4 @@
 script_class="NpcData"
 id = "npc_smith"
 home_zone_id = "zn_haven"
+book_id = "book_npc_smith_epic"

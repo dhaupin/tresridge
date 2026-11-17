@@ -12,6 +12,12 @@
       "target": "zones",
       "kind": "ref",
       "required": false
+    },
+    {
+      "family": "loot_tables",
+      "field": "entries.item_id",
+      "target": "zones",
+      "kind": "nested"
     }
   ],
   "expect": {

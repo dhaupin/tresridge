@@ -54,15 +54,24 @@ export function inferDeclaration(tree) {
   const undeclared = new Map();
 
   for (const r of tree.records) {
-    for (const [field, raw] of r.fields) {
-      if (!/_ids?$/.test(field)) continue;
-      if (!/[a-z]/.test(field)) continue;
-      const kind = field.endsWith('_ids') ? 'refs' : 'ref';
+    // Top-level fields, then level-1 nested keys (`entries.item_id`). The nested
+    // path IS the field, and the kind is `nested`; the target comes from the
+    // inner key's family token, not the outer field's.
+    const candidates = [];
+    for (const [field, raw] of r.fields) candidates.push({ field, nested: false });
+    for (const [outer, inner] of r.nested || []) {
+      for (const key of inner.keys()) candidates.push({ field: `${outer}.${key}`, nested: true });
+    }
+    for (const { field, nested } of candidates) {
+      const leaf = field.split('.').pop();
+      if (!/_ids?$/.test(leaf)) continue;
+      if (!/[a-z]/.test(leaf)) continue;
+      const kind = nested ? 'nested' : (leaf.endsWith('_ids') ? 'refs' : 'ref');
       const id = `${r.family}.${field}`;
       if (seen.has(id)) continue;
       seen.add(id);
 
-      const target = targetFor(field, familyKeys);
+      const target = targetFor(leaf, familyKeys);
       if (!target) {
         undeclared.set(id, (undeclared.get(id) || 0) + 1);
         continue;
@@ -76,8 +85,10 @@ export function inferDeclaration(tree) {
   const declaration = { schemaVersion: 1, families, edges };
   const residue = {
     undeclared: [...undeclared.entries()].map(([k, count]) => {
-      const [family, field] = k.split('.');
-      return { family, field, count };
+        // Split on the FIRST dot only: a nested path is `family.outer.inner`, and
+        // dropping the inner key made the residue under-report.
+        const i = k.indexOf('.');
+        return { family: k.slice(0, i), field: k.slice(i + 1), count };
     }).sort((a, b) => b.count - a.count),
   };
   return { declaration, residue };

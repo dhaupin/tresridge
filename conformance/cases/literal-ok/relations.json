@@ -10,6 +10,11 @@
       "key": "zones",
       "schema": "ZoneData",
       "idPrefix": ""
+    },
+    {
+      "key": "loot_tables",
+      "schema": "LootData",
+      "idPrefix": ""
     }
   ],
   "edges": [
@@ -20,10 +25,26 @@
       "kind": "ref"
     },
     {
+      "family": "loot_tables",
+      "field": "entries.item_id",
+      "target": "zones",
+      "kind": "nested"
+    },
+    {
+      "family": "npcs",
+      "field": "book_id",
+      "kind": "virtual",
+      "pattern": "book_<npc>_<tier>",
+      "required": true
+    },
+    {
       "family": "npcs",
       "field": "external_id",
       "target": "zones",
       "kind": "literal"
     }
-  ]
+  ],
+  "virtualFamilies": {
+    "npc": "npcs"
+  }
 }

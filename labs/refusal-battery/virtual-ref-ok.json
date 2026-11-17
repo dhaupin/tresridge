@@ -1,0 +1,10 @@
+{
+  "id": "virtual-ref-ok",
+  "base": false,
+  "add": {},
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "violations": []
+  }
+}

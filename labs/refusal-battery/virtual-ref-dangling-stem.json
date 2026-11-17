@@ -1,0 +1,14 @@
+{
+  "id": "virtual-ref-dangling-stem",
+  "base": false,
+  "add": {
+    "npcs/npc_smith.tres": "script_class=\"NpcData\"\nid = \"npc_smith\"\nhome_zone_id = \"zn_haven\"\nbook_id = \"book_npc_ghost_epic\"\n"
+  },
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "dangling-ref"
+    ]
+  }
+}

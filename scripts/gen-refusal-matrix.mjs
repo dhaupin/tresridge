@@ -31,12 +31,19 @@ const CLEAN = {
   families: [
     { key: 'npcs', schema: 'NpcData', idPrefix: '' },
     { key: 'zones', schema: 'ZoneData', idPrefix: '' },
+    { key: 'loot_tables', schema: 'LootData', idPrefix: '' },
   ],
   files: {
     'zones/zn_haven.tres': 'script_class="ZoneData"\nid = "zn_haven"\nname = "Haven"\n',
-    'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = "zn_haven"\n',
+    'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = "zn_haven"\nbook_id = "book_npc_smith_epic"\n',
+    'loot_tables/loot_a.tres': '[resource]\nscript_class="LootData"\nid = "loot_a"\nentries = [{\n"item_id": "zn_haven"\n}]\n',
   },
-  edges: [{ family: 'npcs', field: 'home_zone_id', target: 'zones', kind: 'ref' }],
+  edges: [
+    { family: 'npcs', field: 'home_zone_id', target: 'zones', kind: 'ref' },
+    { family: 'loot_tables', field: 'entries.item_id', target: 'zones', kind: 'nested' },
+    { family: 'npcs', field: 'book_id', kind: 'virtual', pattern: 'book_<npc>_<tier>', required: true },
+  ],
+  virtualFamilies: { npc: 'npcs' },
 };
 
 const cases = [
@@ -87,7 +94,10 @@ const cases = [
   {
     id: 'required-false-warns',
     add: { 'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = "zn_missing"\n' },
-    overrideEdges: [{ family: 'npcs', field: 'home_zone_id', target: 'zones', kind: 'ref', required: false }],
+    overrideEdges: [
+      { family: 'npcs', field: 'home_zone_id', target: 'zones', kind: 'ref', required: false },
+      { family: 'loot_tables', field: 'entries.item_id', target: 'zones', kind: 'nested' },
+    ],
     expect: { violations: [], codes: [] },
   },
   {
@@ -96,11 +106,81 @@ const cases = [
     expect: { declErrors: ['duplicate-edge'] },
   },
   {
+    id: 'nested-ref-ok',
+    // a nested edge resolves: entries[].item_id -> a real zone
+    expect: { violations: [] },
+  },
+  {
+    id: 'nested-ref-dangling',
+    // the SAME nested path, but the inner id does not resolve. Before the parser
+    // stopped flattening dicts, this could never fire.
+    add: { 'loot_tables/loot_a.tres': '[resource]\nscript_class="LootData"\nid = "loot_a"\nentries = [{\n"item_id": "zn_missing"\n}]\n' },
+    expect: { codes: ['dangling-ref'] },
+  },
+  {
+    id: 'nested-ref-undeclared',
+    // a nested _id key no edge declares
+    add: { 'loot_tables/loot_a.tres': '[resource]\nscript_class="LootData"\nid = "loot_a"\nentries = [{\n"item_id": "zn_haven",\n"rival_id": "zn_haven"\n}]\n' },
+    expect: { codes: ['undeclared-edge'] },
+  },
+  {
+    id: 'virtual-ref-ok',
+    // a virtual edge: pattern matches, the <npc> stem resolves -> no violation
+    expect: { violations: [] },
+  },
+  {
+    id: 'virtual-ref-dangling-stem',
+    // the pattern matches but the <npc> stem names no record -> dangling-ref.
+    // The old lint returned true unconditionally here, so this could never fire.
+    add: { 'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = "zn_haven"\nbook_id = "book_npc_ghost_epic"\n' },
+    expect: { codes: ['dangling-ref'] },
+  },
+  {
+    id: 'virtual-no-pattern',
+    // a virtual edge with no pattern is a silent skip -> unknown-rule
+    overrideEdges: [
+      { family: 'npcs', field: 'home_zone_id', target: 'zones', kind: 'ref' },
+      { family: 'loot_tables', field: 'entries.item_id', target: 'zones', kind: 'nested' },
+      { family: 'npcs', field: 'book_id', kind: 'virtual' },
+    ],
+    expect: { codes: ['unknown-rule'] },
+  },
+  {
+    id: 'nested-spec-array-form',
+    // The spec writes a nested path as `entries[].item_id`; the tree stores
+    // `entries.item_id`. A declaration written from the SPEC must work - a
+    // silently-skipped edge is the failure this standard exists to end.
+    overrideEdges: [
+      { family: 'npcs', field: 'home_zone_id', target: 'zones', kind: 'ref' },
+      { family: 'loot_tables', field: 'entries[].item_id', target: 'zones', kind: 'nested' },
+      { family: 'npcs', field: 'book_id', kind: 'virtual', pattern: 'book_<npc>_<tier>' },
+    ],
+    add: { 'loot_tables/loot_a.tres': '[resource]\nscript_class="LootData"\nid = "loot_a"\nentries = [{\n"item_id": "zn_missing"\n}]\n' },
+    expect: { codes: ['dangling-ref'] },
+  },
+  {
+    id: 'baseline-unknown-key',
+    // A key the matcher does not read (e.g. a typo'd `match`) would be ignored,
+    // silently widening the row to a catch-all. It MUST be refused instead.
+    baselines: [{ code: 'dangling-ref', match: 'npcs/*.tres', reason: 'typo key', expires: '2027-01-01' }],
+    add: { 'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = "zn_missing"\n' },
+    expect: { codes: ['unknown-rule'] },
+  },
+  {
+    id: 'baseline-glob-scoped',
+    // A glob baseline excuses only the records it names - a dangling ref on a
+    // record OUTSIDE the glob still refuses. This is the teeth: no catch-all.
+    baselines: [{ code: 'dangling-ref', record: 'zones/*.tres', field: 'world_id', reason: 'ack', expires: '2027-01-01' }],
+    add: { 'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = "zn_missing"\n' },
+    expect: { codes: ['dangling-ref'], warnCodes: ['baseline-unmatched'] },
+  },
+  {
     id: 'name-dir-mismatch',
     // a declared family that matches no directory in the tree
     families: [
       { key: 'npcs', schema: 'NpcData', idPrefix: '' },
       { key: 'zones', schema: 'ZoneData', idPrefix: '' },
+      { key: 'loot_tables', schema: 'LootData', idPrefix: '' },
       { key: 'ghosts', schema: 'GhostData', idPrefix: '' },
     ],
     expect: { codes: ['name-dir-mismatch'] },
@@ -157,6 +237,7 @@ function materialize(c) {
   if (c.overrideEdges) edges = c.overrideEdges;
   const families = c.families || base.families;
   const decl = { schemaVersion: 1, families, edges };
+    if (CLEAN.virtualFamilies) decl.virtualFamilies = CLEAN.virtualFamilies;
   if (c.baselines) decl.baselines = c.baselines;
   if (c.schemaVersion !== undefined) decl.schemaVersion = c.schemaVersion;
   const declPath = join(dir, 'relations.json');

@@ -80,7 +80,12 @@ The four shapes that actually occur in the corpus, plus the escape hatch that ke
 
 **`literal` is the honesty kind.** A field can end `_id` and not be an edge - an external system's key, a hash, a free-form tag. Without `literal`, the "every `_id` field is declared" norm would have to tolerate an unlisted class, and the norm would lose its teeth. A `literal` edge is declared and never resolved. Its presence is never a spec violation.
 
-**`virtual` is pattern-resolved, not file-resolved.** A virtual target names a pattern (`book_<skill_id>_<tier>`) that a host service expands at runtime. The lint CONFIRMS the pattern is well-formed and that the referenced stems resolve where they can; it never runs the expansion. Receipt: the reference deployment's `book_akkan_rune_chain_legendary`, prose-only today and invisible to every other tool.
+**`virtual` is pattern-resolved, not file-resolved.** A virtual edge declares a `pattern` (`book_<skill>_<tier>`) whose `<stem>` names a family via the declaration's `virtualFamilies` map. A host service expands the pattern at runtime, so no record carries the id; the lint does not run the expansion, it checks what it can see:
+
+1. the value matches the pattern, and
+2. every `<stem>` capture resolves as an id in its own family.
+
+A stem is not delimited (`akkan_rune_chain` is one stem, not `akkan`), so the matcher backtracks over split points rather than assuming a length. A virtual edge with **no** `pattern` is refused (`unknown-rule`): without one, `virtual` would be a silent skip, which is the exact thing this spec exists to end. Receipt: the reference deployment's `book_akkan_rune_chain_legendary` (skills `akkan_rune_chain`, tiers `epic`/`legendary`), prose-only before and invisible to every other tool.
 
 ## 6. The resolution rule (inference, not the contract)
 
@@ -153,7 +158,8 @@ A host sometimes must ship with a known refusal it cannot fix yet. The spec allo
 
 - `code` MUST be in the vocabulary (section 7) or the baseline is itself refused (`unknown-rule`).
 - `reason` MUST be non-empty. A silent suppression is politeness theater; a baseline without a reason is refused.
-- `record` and `field` are optional matchers; absent, the baseline matches any.
+- `record` and `field` are optional matchers; absent, the baseline matches any. Each may carry `*`/`?` globs, so one row excuses a class (`loot_tables/*.tres`) without listing every record.
+- **A key the matcher does not read is refused** (`unknown-rule`). An ignored key - a typo'd `match` for `record` - would silently widen a narrow row into a catch-all, which is a suppression wearing a baseline's clothes. Allowed keys: `code`, `record`, `field`, `reason`, `expires`.
 - **`expires` is the teeth.** An expired baseline stops excusing: the refusal returns, and the lint additionally reports `baseline-expired`. A mitigation with no expiry is a permanent hole; hosts MAY omit it only when the row carries a MIGRATION-NOTE.
 - **An unmatched baseline is reported** (`baseline-unmatched`, a warning), so a stale excuse is visible and can be retired rather than quietly accumulating.
 
