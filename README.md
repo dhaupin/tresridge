@@ -83,11 +83,27 @@ tresridge lint <tree> --rules profiles/godot/index.mjs
 
 Two laws bind a host rule: it may not invent a code (the code MUST be in the vocabulary), and it may not weaken a standing refusal (host rules ADD findings). `profiles/` holds the reference shape.
 
+## The site (a coreforge rig)
+
+This repo also ships its own front door: a landing site and a docs site at
+`tresridge.creadev.org`, driven from one identity file. The rig is
+[coreforge](https://github.com/dhaupin/coreforge) - the same tool-plus-dogfood shape the
+family's sites run - adopted here, not vendored.
+
+- **`site.config.js`** is THE identity: name, tagline, url, repo, maker, the docs block,
+  the nav vocabulary, and the routes. The brand census gate refuses an identity literal
+  anywhere else.
+- **`npm run site:sync`** fans the identity out to the derived surfaces (the two engine
+  configs, robots, the webmanifest). `--check` refuses drift, which is what CI runs.
+- **`npm run site:check`** runs the gates; **`npm run site:doctor`** is the truth battery.
+- The landing (`web/`) is a prestruct React/Vite prerender; the docs (`docs/`) are Jekyll.
+  Both are gated in the same `test.yml` lane as the tool battery.
+
 ## Status
 
 **v0.1 - the first cut (2026-11-17).** The spec, the front door, and the CLI land together. The extraction is proven, and the tool now proves itself: the refusal battery observes every verdict from a real lint run and refuses its own run on dishonesty. Measured on the reference deployment: 55 families, 1097 records, 61 declaration edges (49 inferred / 12 needing declaration), 6 real dangling refusals.
 
-**M0** spec text - *done* · **M1** the CLI (`lint` / `graph` / `doctor`) - *done* · **M2** conformance harness + npm publish - *partial* (battery + cases ship; publish pending) · **M3** the reference deployment adopts - *designed*.
+**M0** spec text - *done* · **M1** the CLI (`lint` / `graph` / `doctor`) - *done* · **M2** conformance harness + npm publish - *partial* (battery + cases ship; publish pending) · **M3** the reference deployment adopts - *designed* · **M4** the site rig (coreforge landing + docs) - *shipped in this branch*.
 
 ## Family model, not family membership
 

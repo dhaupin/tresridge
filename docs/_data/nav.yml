@@ -1,0 +1,30 @@
+# Docs nav (freestruct menu layer format - same shape the struct family ships).
+# URLs are BASEURL-RELATIVE: the layout prefixes site.baseurl, so the same
+# nav.yml works on any deploy path without editing (no brand or baseurl literal
+# here - the brand census gate holds that).
+#
+# This nav links the pages tresridge actually ships. Add your own groups as your
+# pages land - commented rows show the shape.
+
+- title: Getting Started
+  items:
+  - title: Overview
+    url: /
+  - title: CLI
+    url: /cli/
+
+# The release-post surface rides the menu: a full release-post tree hidden from
+# navigation is a surface nobody finds. The page title is "Release posts".
+- title: Reference
+  items:
+  - title: Release Posts
+    url: /discussions/
+
+# The full specification is the normative source and lives in the repo, not in
+# the docs tree. The spec pages below land as they are ported:
+#  - title: Reference
+#    items:
+#    - title: The Edge Grammar
+#      url: /spec/
+#    - title: The Refusal Vocabulary
+#      url: /spec/refusals/

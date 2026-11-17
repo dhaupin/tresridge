@@ -6,11 +6,24 @@
 - **Repo:** dhaupin/tresridge
 - **Core law:** declare the edge, resolve or refuse
 - **Owner:** synmergia. tresridge is a **synmergia project** that keeps the struct
-  family's *model* (this file, the spec/labs/conformance layout, the refusal battery,
-  the packs slot) but is **not a member of the family roster** - it is not registered in
+  family's *model* (this file, the spec/labs/conformance layout, the refusal battery)
+  but is **not a member of the family roster** - it is not registered in
   govstruct, not published as a family arm, and has no family-domain site.
 - The grammar is a picture of what the reference deployment's tree already does
   (1097 records, 55 families), not a re-design of it.
+
+## The two halves
+
+tresridge is one repo with two halves, the shape coreforge itself runs (tool plus dogfood):
+
+- **The tool** (`bin/`, `src/`, `spec/`, `profiles/`) - the standard. This is the npm
+  package. `npm run check:tool` is its battery.
+- **The site** (`web/`, `docs/`, `site.config.js`) - a **coreforge rig**. The landing
+  (prestruct React/Vite, prerendered) and the docs (Jekyll), driven from one identity
+  file. `npm run site:check` / `site:sync` / `site:doctor`.
+
+`npm run check` runs both. The site half is an ADOPTER of the family's site rig, not a
+family membership: the rig is `coreforge`, the tool is ours.
 
 ## Mechanical conventions (this repo)
 
@@ -57,8 +70,9 @@
 
 ## Branches
 
-- `main` is the trunk. Work branches off it and PRs target it. A `staging` integration
-  branch may be added later; if it is, promotion to `main` is the only path out.
+- `main` is the trunk (production). Work happens on `staging` (the preview/integration
+  branch); promotion to `main` is the only path out, via a PR merged with a merge commit.
+  `staging-ff-sync.yml` keeps staging a fast-forward mirror of main after each promotion.
 
 ## Family model (referenced, not joined)
 

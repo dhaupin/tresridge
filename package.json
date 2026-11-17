@@ -20,20 +20,33 @@
     "test": "node test/battery.mjs",
     "matrix:gen": "node scripts/gen-refusal-matrix.mjs",
     "matrix:check": "node scripts/gen-refusal-matrix.mjs --check",
-    "check": "npm test && npm run matrix:check && npm run vocab:check",
+    "check:tool": "npm test && npm run matrix:check && npm run vocab:check",
+    "check": "npm run check:tool && npm run site:check",
     "prepublishOnly": "npm run check",
     "vocab:check": "node scripts/check-vocabulary.mjs",
-    "vocab:write": "node scripts/check-vocabulary.mjs --write"
+    "vocab:write": "node scripts/check-vocabulary.mjs --write",
+    "site:check": "coreforge check",
+    "site:doctor": "coreforge doctor",
+    "site:sync": "coreforge sync",
+    "site:sync:check": "coreforge sync --check",
+    "site:build": "npm run build --prefix web",
+    "site:docs": "cd docs && bundle exec jekyll build",
+    "site:dev": "npm run dev --prefix web"
   },
   "keywords": [
     "tres",
     "godot",
     "graph",
     "relations",
-    "spec"
+    "spec",
+    "lint",
+    "dangling-reference"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dhaupin/tresridge.git"
+  },
+  "devDependencies": {
+    "coreforge": "^1.0.0"
   }
 }

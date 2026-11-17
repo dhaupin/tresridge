@@ -6,6 +6,35 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### The site rig (coreforge landing + docs)
+
+tresridge now ships its own front door: a landing site and a docs site, driven from one
+identity file. The rig is `coreforge`, adopted (not vendored) as a single root devDependency,
+so a gate or lane fix arrives with `npm update coreforge` rather than a re-copy.
+
+- **`site.config.js`** - THE site identity: name, tagline, url, repo, maker, the docs block,
+  the theme block, the nav vocabulary, and the routes. The brand census gate refuses an
+  identity literal that lives anywhere else.
+- **`npm run site:sync`** fans the identity out to the derived surfaces (`docs/_config.yml`,
+  `docs/freestruct.config.yml`, `web/public/robots.txt`, `web/public/site.webmanifest`).
+  `site:sync:check` refuses drift and is what CI runs.
+- **`npm run site:check`** / **`site:doctor`** - the gates (brand census, docs frontmatter,
+  links, style, fiction signatures, Liquid filter trap, theme parity, language, birth-gate)
+  and the truth battery.
+- **The landing** (`web/`) is a prestruct React/Vite prerender; **the docs** (`docs/`) are
+  Jekyll. Both build in CI.
+- **`.github/workflows/test.yml`** now runs two jobs: the **tool battery** (`check:tool` on
+  Node 20 and 22) and the **site battery** (gates, `sync --check`, the web build, the docs
+  build). Every action is SHA-pinned with its human tag in a trailing comment.
+- **`.github/workflows/docs-deploy.yml`** is a thin caller of the one family docs lane
+  (dhaupin/freestruct, pinned); **`staging-ff-sync.yml`** keeps `staging` a fast-forward
+  mirror of `main`.
+- **No `packs/`.** The rig ships a `packs/` slot for site adopters; tresridge's extension
+  surface is `--rules <module>` plus `profiles/`, so the slot is not present and the
+  duplicate is not shipped.
+
+`npm run check` is now tool battery plus site gates; `check:tool` keeps the tool-only lane.
+
 ### The enforcement layer (the spec becomes checkable)
 
 The first cut had the refusals hardcoded inline in `lint.mjs` - seven in the code, six in the spec table, and two of the spec's six not implemented. Four silent drifts, and no way to add a rule without editing the lint. The definition and the enforcement could disagree, which is the opposite of "define it, enforce it."
