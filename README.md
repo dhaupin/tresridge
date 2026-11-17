@@ -10,7 +10,7 @@ This repo ships the normative spec ([`spec/SPEC.md`](spec/SPEC.md)) plus a zero-
 
 ## The edge grammar, in one screen
 
-A **family** is one directory of records bound to one schema. An **edge** is one field that points at a family.
+A **family** is one directory of records. An **edge** is one field that points at a family — or at a **union** of families, when ids live across several directories (item ids sit in `weapons/`, `armors/`, `resources/`, ...).
 
 ```
 family  npc    { schema: "NpcData",   idPrefix: "npc_" }
@@ -18,8 +18,9 @@ family  quest  { schema: "QuestData", idPrefix: "quest_" }
 
 edge    quest.giver_npc_id           -> npc    kind: ref
 edge    quest.required_quests        -> quest  kind: refs
-edge    loot_table.entries[].item_id -> item   kind: nested
+edge    loot_table.entries[].item_id -> [weapons, armors, resources, ...]  kind: nested
 edge    book.<skill>_<tier>          -> skill  kind: virtual
+edge    npc_offering.service_id      -> (a class name, not an id)          kind: literal
 ```
 
 One record, read by every consumer - the runtime loader, the authoring docs, the public site. No consumer restates an edge.
@@ -27,14 +28,13 @@ One record, read by every consumer - the runtime loader, the authoring docs, the
 ## Usage
 
 ```bash
-npx tresridge lint tree/                     # every declared edge resolves; no undeclared _id
-npx tresridge lint tree/ --json              # { schema, families, edges, violations }
+npx tresridge lint <tree>                    # every declared edge resolves; no undeclared _id
+npx tresridge lint <tree> --decl rel.json    # against a named declaration (default relations.json)
+npx tresridge lint <tree> --json             # { families, records, edges, violations, warnings }
 
-npx tresridge graph tree/                    # emit the resolved graph (nodes + edges)
-npx tresridge graph tree/ --against decl.json   # diff the inferred graph vs the declared one
-npx tresridge doctor tree/                   # the full pass: lint + graph + orphans + cycles
-
-npx tresridge new my-family                  # scaffold a conforming family + edge skeleton
+npx tresridge graph <tree>                   # infer a first-draft declaration from the tree
+npx tresridge graph <tree> --out rel.json    # write the draft
+npx tresridge doctor <tree>                  # the summary pass: families, edges, residue, violations
 ```
 
 Exit contract: `0` clean, `1` violations, `2` usage.
@@ -52,9 +52,9 @@ This is **inference, not the contract** - it seeds a declaration. Measured on th
 
 ## Status
 
-**v0.1 - the first cut (2026-11-17).** The spec text and this front door land first; the frozen `spec/SPEC.md` and the CLI follow. The extraction is proven: the reference deployment's probe (`scripts/tresridge_probe.mjs`, 122 lines, zero deps) already walks 1097 records across 55 families and names every residue.
+**v0.1 - the first cut (2026-11-17).** The spec, the front door, and the CLI land together. The extraction is proven, and the tool now proves itself: the refusal battery observes every verdict from a real lint run and refuses its own run on dishonesty. Measured on the reference deployment: 55 families, 1097 records, 61 declaration edges (49 inferred / 12 needing declaration), 6 real dangling refusals.
 
-**M0** spec text - *in progress* · **M1** the probe becomes a CLI - *partial* · **M2** conformance harness + publish - *not started* · **M3** the reference deployment adopts - *designed*.
+**M0** spec text - *done* · **M1** the CLI (`lint` / `graph` / `doctor`) - *done* · **M2** conformance harness + npm publish - *partial* (battery + cases ship; publish pending) · **M3** the reference deployment adopts - *designed*.
 
 ## Family
 

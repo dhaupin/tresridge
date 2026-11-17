@@ -6,6 +6,16 @@ One relation grammar, many hosts. This document is normative for any host that k
 
 **Schema base (verified 2026-11-17, the reference deployment's probe):** the corpus ships **1097 `.tres` records across 55 directories**; a convention-only resolver extracts **344 edges**, leaves **14 fields** with no target convention, and finds **6 dangling** targets. v1 formalizes that reality; hosts either already conform (Synmergia) or adopt it fresh.
 
+**Units, named (this cost a whole session).** "Edge" was used for three different things and the numbers looked contradictory until they were separated:
+
+| Unit | Count | Meaning |
+|---|---|---|
+| declaration edge | **61** | a distinct `(family, field)` pair - one row in `relations.json` |
+| reference instance | **405** | one id value in one field on one record |
+| inferred edge | **344** | reference instances whose field name resolves by the rule |
+
+The 61 pairs split **49 inferred / 12 needing declaration**; the 405 instances split **367 resolved / 38 unresolved / 7 non-id** (PascalCase class names in `_id` fields, which are `literal`). Any host quoting a single number MUST name its unit.
+
 ## 1. Directory contract (all hosts)
 
 ```
@@ -23,8 +33,8 @@ A **family** is one directory of records bound to one schema. It is the unit tha
 
 | Field | Rules |
 |---|---|
-| `key` | kebab-case string, MUST match its directory name (mismatch = load refuse, never silent success) |
-| `schema` | the schema identity its records declare (a `class_name`, a type tag). MUST match the record's own; a mismatch is a load refuse |
+| `key` | an identifier (its directory name). MUST match its directory name (mismatch = load refuse, never silent success) |
+| `schema` | OPTIONAL. The schema identity its records declare (a `class_name`). Declaring one asserts every record carries it; a **mixed family** (the reference tree's `balance/` holds twelve) declares none, and the record's own schema stands |
 | `idPrefix` | OPTIONAL string. The id stem (`npc_`), or empty for bare ids. When present, `filename` MUST carry it (section 3) |
 | `filename` | MUST be `id` in v1 - the filename IS the id. This is the authoring law, made checkable |
 
@@ -50,7 +60,7 @@ An **edge** is one field on a family's records that points at another family. It
 | Field | Rules |
 |---|---|
 | `field` | the record field carrying the reference. For a `nested` edge, a path with `[]` into an array-of-dicts (`entries[].item_id`) |
-| `target` | a family `key`, or `virtual` (section 5) |
+| `target` | a family `key`, an **array of keys** (a union family - the reference tree's item ids live across `weapons/`, `armors/`, `resources/`, ...), or `virtual` (section 5) |
 | `kind` | one of `ref`, `refs`, `nested`, `virtual`, `literal` (section 5) |
 | `required` | OPTIONAL boolean, default `true`. `true`: a dangling target is a refusal. `false`: acknowledged, never refused |
 
@@ -99,13 +109,16 @@ A conforming lint refuses with a one-line error naming the record, the field, an
 ## 8. The conformance CLI (the project's own artifact)
 
 ```
-tresridge lint tree/                             # declared edges resolve; no undeclared _id; no cycles
-tresridge lint tree/ --json                      # { schema, families, edges, violations }
-tresridge graph tree/                            # emit the resolved graph (nodes + edges)
-tresridge graph tree/ --against relations.json   # diff the inferred graph vs the declared one
-tresridge doctor tree/                           # the full pass: lint + graph + orphans + cycles
-tresridge new my-family                          # scaffold a conforming family + edge skeleton
+tresridge lint <tree> [--decl relations.json] [--json]   # refusals; exit 1 on any
+tresridge graph <tree> [--out relations.json] [--json]   # infer a first-draft declaration
+tresridge doctor <tree> [--decl relations.json]          # the summary pass
 ```
+
+`lint` and `doctor` read a declaration (default `relations.json`); `graph` writes one. A
+`--against` drift verb is the M1 addition (TASKS): it diffs the inferred graph against the
+committed declaration and fails on drift, so a declaration cannot fall behind the corpus
+silently. The declaration itself is validated by the same rule set as the tree
+(`validateDeclaration`), so a malformed declaration refuses before a single record is read.
 
 The `graph` verb is the adoption on-ramp: it DERIVES `relations.json` from an existing tree, so a host starts from truth. Exit contract: `0` clean, `1` violations, `2` usage. The `--against` diff is the drift gate: it fails when the declared graph and the inferred graph disagree, so a declaration that has fallen behind the corpus is loud, not silent.
 

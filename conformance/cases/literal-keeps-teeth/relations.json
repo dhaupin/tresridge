@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "families": [
+    {
+      "key": "npcs",
+      "schema": "NpcData",
+      "idPrefix": ""
+    },
+    {
+      "key": "zones",
+      "schema": "ZoneData",
+      "idPrefix": ""
+    }
+  ],
+  "edges": [
+    {
+      "family": "npcs",
+      "field": "home_zone_id",
+      "target": "zones",
+      "kind": "ref"
+    },
+    {
+      "family": "npcs",
+      "field": "service_id",
+      "target": "zones",
+      "kind": "literal"
+    }
+  ]
+}

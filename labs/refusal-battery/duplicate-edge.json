@@ -1,0 +1,19 @@
+{
+  "id": "duplicate-edge",
+  "base": false,
+  "add": {},
+  "extraEdges": [
+    {
+      "family": "npcs",
+      "field": "home_zone_id",
+      "target": "zones",
+      "kind": "ref"
+    }
+  ],
+  "overrideEdges": [],
+  "expect": {
+    "declErrors": [
+      "duplicate-edge"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "undeclared-edge",
+  "base": false,
+  "add": {
+    "npcs/npc_smith.tres": "script_class=\"NpcData\"\nid = \"npc_smith\"\nhome_zone_id = \"zn_haven\"\nrival_id = \"npc_other\"\n"
+  },
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "undeclared-edge"
+    ]
+  }
+}

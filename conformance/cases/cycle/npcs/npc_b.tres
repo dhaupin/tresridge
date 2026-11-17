@@ -1,0 +1,4 @@
+script_class="NpcData"
+id = "npc_b"
+home_zone_id = "zn_haven"
+rival_id = "npc_a"
