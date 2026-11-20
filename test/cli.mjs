@@ -10,7 +10,7 @@
 // the real CLI over them.
 
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -97,6 +97,18 @@ try {
   expectCode('no arguments is a usage error', cli([]), 2);
   expectCode('unknown verb is a usage error', cli(['bogus', '/tmp']), 2);
   expectCode('missing tree is a usage error', cli(['lint', '/nope/not/here']), 2);
+
+  // --version is a promise the release ladder depends on ---------------------
+  // verify-release installs the published tarball and asserts
+  // `tresridge --version` answers the packaged version. With no handler the CLI
+  // printed USAGE and exited 2, so the ladder could never pass on a real cut.
+  {
+    const r = cli(['--version']);
+    const want = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
+    expectCode('--version exits 0', r, 0);
+    check('--version prints the packaged version', r.out.trim() === want, `${r.out.trim()} != ${want}`);
+    expectCode('-v exits 0', cli(['-v']), 0);
+  }
 
   // -- the contract root (SPEC section 1) ------------------------------------
   // The defect this file exists for: a root ABOVE the tree root collapsed every

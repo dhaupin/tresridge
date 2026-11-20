@@ -39,6 +39,14 @@ const has = (name) => argv.includes(name);
 
 if (!cmd || cmd === '--help' || cmd === '-h') { console.log(USAGE); process.exit(cmd ? 0 : 2); }
 
+// The version is read from package.json, never restated: a hand-copied literal
+// is a second source that drifts silently from the one npm publishes.
+if (cmd === '--version' || cmd === '-v') {
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  console.log(pkg.version);
+  process.exit(0);
+}
+
 // `rules` reads only the vocabulary - it needs no tree.
 if (cmd === 'rules') {
   if (has('--json')) { console.log(JSON.stringify({ schemaVersion: 1, codes: VOCABULARY, count: VOCABULARY.length }, null, 2)); }

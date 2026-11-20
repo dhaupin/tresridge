@@ -198,5 +198,21 @@ jobs:
           NAME=$(node -p "require('./package.json').name")
           # tresridge is the library: the tarball is bin/, src/, spec/, profiles/,
           # none on the family-default forbidden list, so no --allow is needed.
-          npx --no-install coreforge verify-release --npm --version "$V"
+          case "$V" in
+            0.*)
+              # The 0.x manual lane is published by a human, so no OIDC trust chain
+              # stamped it and the version carries no provenance attestation.
+              # Asserting one here would fail every manual cut, and a gate that always
+              # fails teaches people to ignore it. Verify the SERVED tarball instead:
+              # the same contents ladder and integrity, minus the attestation this
+              # lane cannot produce. Named, never a silent skip.
+              echo "verify: $V is a manual-lane cut - no provenance attestation exists by design"
+              TMP=$(mktemp -d)
+              npm pack "$NAME@$V" --pack-destination "$TMP" > /dev/null
+              npx --no-install coreforge verify-release --pack "$TMP/$NAME-$V.tgz"
+              ;;
+            *)
+              npx --no-install coreforge verify-release --npm --version "$V"
+              ;;
+          esac
           npx --no-install coreforge verify-release --gh --tag "v$V" --asset "$NAME-$V.tgz"

@@ -14,6 +14,15 @@ site rig, the measured-numbers discipline, and the silent-pass class of fixes.
 0.9.0 is the last of the manual lane - a human runs `npm publish` from a clean
 `main`, and the tag-driven OIDC ladder takes over at 1.0.0.
 
+### `--version` answers, so the release ladder can pass
+
+`verify-release` installs the published tarball and asserts `tresridge --version`
+answers the packaged version. The CLI had no such handler: it printed the usage
+block and exited **2**, so the ladder could never pass on a real cut - a defect
+only a publish would have found. `--version` / `-v` now print the version read
+from `package.json` (never a restated literal, which is a second source that
+drifts) and exit 0. Three CLI checks fail if the handler is reverted.
+
 ### The silent-pass class: a wrong root is now a refusal
 
 Seven defects shared one shape: the tool completed successfully while measuring the
