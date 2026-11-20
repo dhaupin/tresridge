@@ -2,7 +2,57 @@
 
 > Rolling log. Companion to [`labs/prd-tresridge.md`](./prd-tresridge.md) (the product contract). Newest session at top. Struck items are done.
 
-Last updated: 2026-11-17.
+Last updated: 2026-11-20.
+
+## Session 2026-11-20 (a) - the staging branch, and the two promotions
+
+The family flow was declared here (AGENTS.md section Branches) but not wired: there
+was no `staging` branch, so the documented path had nowhere to run. This session made
+the declaration true.
+
+**`staging` exists.** Created at `main` (`f30b4b1`), the permanent integration branch.
+PR #1 was retargeted from `main` to `staging` and merged as a merge commit (`12639c8`).
+That is the first time the standard and the site rig landed through the integration
+branch instead of straight onto the trunk.
+
+**First promotion** (`staging` -> `main`, PR #2, merge `8a2fc80`). Both lanes green on
+`staging` before the promotion: `test` and `Deploy Docs`. After the merge the
+`staging-ff-sync` job fast-forwarded `staging` to `main`, so the two are equal again.
+
+**Dependabot was bypassing staging.** The stamped `.github/dependabot.yml` had no
+`target-branch`, so every update opened on the default branch, `main`, which skips the
+one place the family flow says a change is validated. PR #3 (the github-actions group
+bump) arrived that way and was retargeted by hand. The cause is now fixed: all three
+ecosystems (`npm` at `/`, `npm` at `/web`, `github-actions`) name `staging`, and the
+header comment records why so a re-stamp does not drop the line again (PR #4, merge
+`af26210`). This matches `dhaupin/synmergia`, which already names `target-branch`.
+
+**Second promotion** (`staging` -> `main`, PR #5, merge `46db9d7`). Lands the
+dependabot fix plus the group bump: `freestruct` docs lane `7dfb172` -> `cd2536b`
+(verified a strict descendant, 24 ahead, 0 behind) and `ruby/setup-ruby` v1.335.0 ->
+v1.338.0. Still SHA-pinned, never floating. `main` and `staging` are equal at
+`46db9d7`.
+
+**One real finding: the docs deploy cannot publish.** `test` is green on `main`, and
+the docs lane's `build` job is green, but its `deploy` job fails with a 404 from
+`actions/deploy-pages`: "Ensure GitHub Pages has been enabled". The repository is
+private and Pages has never been enabled on it (`private=true`, `has_pages=false`).
+Every sibling that publishes docs is public (`synmergia`, `freestruct`, `coreforge` are
+all `private=false`, `has_pages=true`); `creadev` is private and also has no Pages, so
+this repo matches the private-repo pattern rather than a one-off break.
+
+What is not established: whether Pages is *available* here or merely *unconfigured*.
+The CI token cannot read the Pages settings or create them (both return 403 "Resource
+not accessible by integration"), and the account plan reads as `none`, which is the
+token declining to report rather than a real answer. So the cause is narrowed to
+"Pages is off for this repo" and no further.
+
+The caller is correct, the lane is correct, and the artifact uploads cleanly. This is
+an owner action, not a repo-file one: enable Pages for the repo (Settings -> Pages,
+source = GitHub Actions) if the plan allows it, or drop `docs-deploy.yml` from `main`
+until it does. Left as found rather than papered over with a green-looking skip,
+because a deploy that silently does nothing is the exact failure this repo's gates
+exist to catch.
 
 ## Session 2026-11-17 (d) - the marketing PRD (audience-first, receipts-first)
 
