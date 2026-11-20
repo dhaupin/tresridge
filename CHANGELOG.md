@@ -14,6 +14,16 @@ site rig, the measured-numbers discipline, and the silent-pass class of fixes.
 0.9.0 is the last of the manual lane - a human runs `npm publish` from a clean
 `main`, and the tag-driven OIDC ladder takes over at 1.0.0.
 
+### The ship lane: the first publish is scripted, not typed
+
+The first push of a new package name cannot use OIDC - Trusted Publishing is
+configured per existing package - so the first cut is a human with a token.
+`scripts/ship-from-download.cjs` stages a downloaded zip tree (no `.git`, no
+`node_modules`, a FUSE download folder that refuses symlinks), installs, publishes
+with a token held only in the child env, and unlinks the staged `.npmrc` in a
+`finally`. Refusals are named and exit 2; it never deletes on its own. `npm run
+ship`, with `--dry-run` first. 21 behavior tests, wired into `npm run check`.
+
 ### `--version` answers, so the release ladder can pass
 
 `verify-release` installs the published tarball and asserts `tresridge --version`

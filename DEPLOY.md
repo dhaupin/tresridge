@@ -24,11 +24,46 @@ npm publish              # from a clean main, as a human
 git tag v0.9.0 && git push origin v0.9.0
 ```
 
+### The ship lane (publishing from a downloaded zip)
+
+The first push of a new package name cannot use OIDC: npm Trusted Publishing is
+configured per existing package, so the very first publish has to be a human with
+a token. `scripts/ship-from-download.cjs` is that lane, scripted. It exists because
+a GitHub zip carries no `.git` and no `node_modules`, and on a phone the download
+folder is a FUSE mount that refuses the symlinks an install needs.
+
+```
+NPM_TOKEN=<granular publish token> npm run ship -- \
+  --target /storage/emulated/0/Download/tresridge-main/tresridge-main \
+  --root ~/web/tresridge-main \
+  [--dry-run] [--clean]
+```
+
+It stages the tree into `--root`, runs `npm ci` (or `install` when there is no
+lockfile), stages a one-line `.npmrc` holding `${NPM_TOKEN}` rather than the token
+itself, runs `npm publish`, and unlinks that `.npmrc` in a `finally` - publish
+failing or not. The token never lands in a file, in `argv`, or in the log.
+`prepublishOnly` still rules: the lane only gets you to the launchpad.
+
+Refusals are named and exit `2`: `MISSING_TARGET`, `NOT_A_PACKAGE_TREE`,
+`BAD_PACKAGE_JSON`, `BAD_PACKAGE_NAME`, `SHARED_STORAGE_ROOT`, `HOME_ROOT`,
+`ROOT_SAME_AS_TARGET`, `ROOT_OCCUPIED`, `BAD_TOKEN`, `NPMRC_EXISTS`. It never
+deletes on its own - `ROOT_OCCUPIED` prints the `rm -rf` line and stops. `--clean`
+removes only the root it staged in that run, never the target.
+
+Run `--dry-run` first: it exercises the whole lane including `prepublishOnly` and
+publishes nothing.
+
 The tag then cuts the GitHub release (notes from the CHANGELOG's `[0.9.0]` section,
 the exact served tarball attached) and runs the verify ladder. A 0.x cut carries no
 provenance attestation - only the OIDC lane stamps one - so the verify job checks the
 served tarball's contents and integrity instead and says so. 1.0.0+ asserts the
 attestation, because there the lane produced it.
+
+To check the published result yourself, `npm run release:verify -- --npm` walks the
+registry ladder (latest == packaged version, served sha512 == metadata integrity,
+then the full pack ladder on the bytes actually served). `npm run release:verify --
+--pack <tgz>` runs the same contents ladder offline on a tarball.
 
 Publishing is **optional and synmergia-owned**. The standard is useful as a repo and a CLI
 invoked from a checkout; npm is a convenience, not a dependency.
