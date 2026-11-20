@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### The pack surface replaces profiles
+
+`profiles/` is gone. A pack is a directory with a `pack.json` manifest, an entry
+module, and its own refusals, so it can declare what it requires and carry a
+vocabulary of its own - which the profile never could.
+
+- `packs/public/godot-shapes/` is the reference shape, and it ships in the
+  tarball: `--packs node_modules/tresridge/packs/public` is the whole install.
+- `packs/pack-ledger.json` records the pack ids.
+- `scripts/run-packs.mjs` runs the conformance battery: 10/10 cases honored,
+  9/10 under `--claims` (see the README on the env-claims echo).
+- SPEC section 12 now reads "the host and pack surface"; section 7's table is
+  regenerated from `spec/refusals.json`.
+
+Breaking for anyone who pinned `profiles/godot/`: the path moves to
+`packs/public/godot-shapes/`. The pack also gains one rule the profile never
+had - `godot/id-required-when-prefixed`, a violation when a family declares an
+`idPrefix` and a record carries no explicit `id` line - so a tree that passed
+under the profile can fail under the pack. That is the intended direction: the
+pack is where a host's law gets teeth.
+
 ## [0.9.0] - 2026-11-20
 
 The first registry cut. Everything below landed after 0.1.0 and before the

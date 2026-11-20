@@ -128,7 +128,7 @@ became data and the drift became impossible.
   `--force`, or inline disable anywhere.
 - **The extension surface.** `--rules <module>` on the CLI, `opts.extraRules` in the
   API, a `rules` verb to print the vocabulary. Two laws: a host rule may not invent a
-  code, and may not weaken a standing refusal. `profiles/godot/` is the reference.
+  code, and may not weaken a standing refusal. `packs/public/godot-shapes/` is the reference.
 - **SPEC sections 9 (baselines + enforcement), 12 (extending), 13 (transport), 14
   (non-goals).** Section 13 states the independence boundary: the unit of exchange is
   the declaration and the verdict, both plain JSON; no network in the core; a host may
