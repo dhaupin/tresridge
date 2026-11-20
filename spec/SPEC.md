@@ -120,7 +120,7 @@ A conforming lint refuses with a one-line error naming the record, the field, an
 | `dangling-ref` | violation | 7 | a declared edge names a target no record in the target family carries |
 | `cycle` | violation | 7 | a declared scalar ref chain returns to its start |
 | `duplicate-edge` | violation | 4 | two edges declare the same (family, field) |
-| `unknown-rule` | violation | 7 | a profile or baseline names a refusal code the vocabulary does not carry |
+| `unknown-rule` | violation | 7 | a host module, pack, or baseline names a refusal code the vocabulary does not carry |
 | `baseline-expired` | violation | 9 | a baseline's expiry has passed; the acknowledged refusal is no longer excused |
 | `baseline-unmatched` | warning | 9 | a baseline excuses a refusal that no longer occurs; reported so it can be retired |
 | `not-a-tree-root` | violation | 1 | the root passed is not the tree root: its children are records (a family directory), or one family spans many directories and schemas (a directory above the tree root), so no edge can resolve |
@@ -232,12 +232,12 @@ A new host joins by answering three questions, in order, never by forking the gr
 
 A host that declares nothing new inherits the whole spec by conforming to `relations.json` alone.
 
-## 12. Extending the lint (the profile surface)
+## 12. Extending the lint (the host and pack surface)
 
 A host extends the lint by **adding rules**, never by forking it. `lint(tree, decl, { extraRules, vocabulary })` takes host rules; the CLI loads them with `--rules <module>`:
 
 ```js
-// my-profile.mjs - a host's private rules
+// my-rules.mjs - a host's private rules
 export const rules = [
   { code: 'my-project/no-empty-name', severity: 'violation', scope: 'tree',
     run(ctx) {
@@ -257,7 +257,11 @@ Two laws bind a host rule:
 1. **It may not invent a code.** The code MUST be in the vocabulary the host handed the lint. A host rule whose code is not in the vocabulary is itself refused (`unknown-rule`). To add a code, the host adds it to its own `refusals.json` - the vocabulary is data, so this is a data edit, not a fork.
 2. **It may not weaken a standing refusal.** Host rules ADD findings. There is no hook that removes one; a refusal is excused only by a baseline (section 9), on the record, with a reason and a clock.
 
-A **profile** is a named bundle of host rules plus a vocabulary extension, shipped as a module a host pins. The `profiles/` directory holds the reference shape. Profiles are how a family (a Godot project, a docs tree, a service config set) layers its own laws on the shared grammar without touching the grammar.
+A **pack** is the durable form of that bundle: a directory carrying a `pack.json` and an entry module, conforming to [packstruct](https://github.com/dhaupin/packstruct) v1. A pack's `checks[]` ARE host rules - the same objects, run through the same pipeline, bound by the same two laws. Its `vocabulary` is merged into the run's vocabulary before its rules are judged, so a pack adds codes exactly as a host module does. Every finding a pack produces is stamped with the pack's name, so a verdict can name the law that refused it.
+
+`packs/public/` holds the reference shape, and it ships in the npm package. A pack is how a family (a Godot project, a docs tree, a service config set) layers its own laws on the shared grammar without touching the grammar - and it is the same artifact the wider struct family ecosystem reads, so one pack serves tresridge and its neighbours.
+
+A host arms a pack with `--packs <dir>` (repeatable), or `opts.packs` in the library. A directory carrying `pack.json` is one pack; any other directory is a packs root whose children are packs. A pack declaring a `requires` token the run root does not provide is **skipped by name**, never silently dropped - and `ignore` wins over relevance.
 
 ## 13. Transport and the independence boundary
 

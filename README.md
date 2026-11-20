@@ -93,13 +93,22 @@ An expired baseline stops excusing (`baseline-expired`). An unmatched one is rep
 
 ### Extending without forking
 
-A host adds rules, never edits the grammar:
+A host adds rules, never edits the grammar. Two ways in, one law:
 
 ```
-tresridge lint <tree> --rules profiles/godot/index.mjs
+tresridge lint <tree> --rules ./my-rules.mjs         # a one-off module
+tresridge lint <tree> --packs ./packs/public        # a packstruct pack, or a packs root
 ```
 
-Two laws bind a host rule: it may not invent a code (the code MUST be in the vocabulary), and it may not weaken a standing refusal (host rules ADD findings). `profiles/` holds the reference shape.
+Two laws bind a host rule: it may not invent a code (the code MUST be in the vocabulary it was handed), and it may not weaken a standing refusal (host rules ADD findings).
+
+A **pack** is the durable form: a directory with a `pack.json` and an entry module, per [packstruct](https://github.com/dhaupin/packstruct) v1. Its `checks[]` are rules, its `vocabulary` is merged before its rules are judged, and every finding it produces is stamped with the pack that made it. `packs/public/godot-shapes/` is the reference shape and it ships in this package - `npx tresridge lint <tree> --packs node_modules/tresridge/packs/public` is the whole install.
+
+`--packs` is repeatable, and a pack declaring a `requires` token the run root does not provide is skipped **by name**, never silently.
+
+### Conformance: what tresridge claims, and what it declines
+
+`packstruct audit-conformance` grades a host against the v1 cases. tresridge passes **10/10**. With `--claims` it reports **9/10**: the missing case is the env-claims echo, a surface for packs that declare environment claims. tresridge declines it rather than faking the echo, because no pack in the family declares env claims today - the pack layer was built for the cases that carry meaning here (manifest grammar, entry contract, id census, lifecycle, refusals by name), and an echo of nothing would be a claim with no bytes behind it. If a pack ever ships env claims, the echo becomes load-bearing and gets implemented then.
 
 ## The site (a coreforge rig)
 

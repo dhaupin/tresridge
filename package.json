@@ -14,20 +14,24 @@
     "bin",
     "src",
     "spec",
-    "profiles"
+    "packs",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "test": "node test/battery.mjs",
     "test:cli": "node test/cli.mjs",
     "test:drift": "node test/drift.mjs",
     "test:ship": "node --test test/ship-from-download.test.cjs",
+    "test:packs": "node test/packs.mjs",
     "matrix:gen": "node scripts/gen-refusal-matrix.mjs",
     "matrix:check": "node scripts/gen-refusal-matrix.mjs --check",
     "vocab:check": "node scripts/check-vocabulary.mjs",
     "vocab:write": "node scripts/check-vocabulary.mjs --write",
     "docs:check": "node scripts/check-docs.mjs",
     "docs:write": "node scripts/check-docs.mjs --write",
-    "check:tool": "npm test && npm run matrix:check && npm run vocab:check && npm run docs:check && npm run test:ship",
+    "check:tool": "npm test && npm run test:packs && npm run matrix:check && npm run vocab:check && npm run docs:check && npm run test:ship",
     "check": "npm run check:tool && npm run site:check",
     "prepublishOnly": "npm run check",
     "ship": "node scripts/ship-from-download.cjs",
@@ -38,7 +42,10 @@
     "site:sync:check": "coreforge sync --check",
     "site:build": "npm run build --prefix web",
     "site:docs": "cd docs && bundle exec jekyll build",
-    "site:dev": "npm run dev --prefix web"
+    "site:dev": "npm run dev --prefix web",
+    "packs": "node scripts/run-packs.mjs",
+    "lint:packs": "node bin/cli.mjs lint-packs --deep",
+    "conform:packs": "packstruct audit-conformance . --loader \"node scripts/run-packs.mjs {packs}\""
   },
   "keywords": [
     "tres",
@@ -54,6 +61,7 @@
     "url": "git+https://github.com/dhaupin/tresridge.git"
   },
   "devDependencies": {
-    "coreforge": "^1.0.0"
+    "coreforge": "^1.0.0",
+    "packstruct": "1.1.2"
   }
 }

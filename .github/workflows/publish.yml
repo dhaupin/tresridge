@@ -26,7 +26,7 @@ name: publish
 # stamped package.json ships both, plus `prepublishOnly` (the battery that
 # rides every publish).
 #
-# tresridge IS the library: `files` ships bin/, src/, spec/, profiles/, none of
+# tresridge IS the library: `files` ships bin/, src/, spec/, packs/, none of
 # which is on the family-default forbidden list (labs/, web/, docs/, scripts/,
 # node_modules/, .github/), so the verify step needs no `--allow`.
 #
@@ -196,7 +196,7 @@ jobs:
           set -e
           V="$(node -p "require('./package.json').version")"
           NAME=$(node -p "require('./package.json').name")
-          # tresridge is the library: the tarball is bin/, src/, spec/, profiles/,
+          # tresridge is the library: the tarball is bin/, src/, spec/, packs/,
           # none on the family-default forbidden list, so no --allow is needed.
           case "$V" in
             0.*)
