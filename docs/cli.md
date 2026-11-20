@@ -17,6 +17,7 @@ npx tresridge lint <tree> [--decl <file>] [--rules <module>] [--json]
 npx tresridge graph <tree> [--out <file>] [--against <file>] [--json]
 npx tresridge doctor <tree> [--decl <file>] [--rules <module>]
 npx tresridge rules [--json]
+npx tresridge --version
 ```
 
 ## The verbs

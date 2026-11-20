@@ -37,6 +37,7 @@ npx tresridge graph <tree> --out rel.json    # write the draft
 npx tresridge doctor <tree>                  # the summary pass: families, edges, residue, violations
 npx tresridge rules                          # the refusal vocabulary this lint carries
 npx tresridge lint <tree> --rules p.mjs      # add a host profile's rules
+npx tresridge --version                      # the packaged version
 ```
 
 Exit contract: `0` clean, `1` violations, `2` usage.

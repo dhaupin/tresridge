@@ -24,6 +24,12 @@ npm publish              # from a clean main, as a human
 git tag v0.9.0 && git push origin v0.9.0
 ```
 
+The tag then cuts the GitHub release (notes from the CHANGELOG's `[0.9.0]` section,
+the exact served tarball attached) and runs the verify ladder. A 0.x cut carries no
+provenance attestation - only the OIDC lane stamps one - so the verify job checks the
+served tarball's contents and integrity instead and says so. 1.0.0+ asserts the
+attestation, because there the lane produced it.
+
 Publishing is **optional and synmergia-owned**. The standard is useful as a repo and a CLI
 invoked from a checkout; npm is a convenience, not a dependency.
 
