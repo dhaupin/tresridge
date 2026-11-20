@@ -1,0 +1,12 @@
+{
+  "id": "name-dir-mismatch",
+  "base": false,
+  "add": {},
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "name-dir-mismatch"
+    ]
+  }
+}

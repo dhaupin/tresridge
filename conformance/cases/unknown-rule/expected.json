@@ -1,0 +1,8 @@
+{
+  "violations": [
+    "unknown-rule"
+  ],
+  "warnings": [
+    "baseline-unmatched"
+  ]
+}

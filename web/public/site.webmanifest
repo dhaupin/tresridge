@@ -1,0 +1,30 @@
+{
+  "name": "tresridge",
+  "short_name": "tresridge",
+  "description": "The .tres relation standard: point tresridge at the tree you already have, and it tells you what you have, what dangles, and what is undeclared.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#edf3f2",
+  "theme_color": "#edf3f2",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

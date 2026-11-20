@@ -1,0 +1,10 @@
+{
+  "id": "nested-ref-ok",
+  "base": false,
+  "add": {},
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "violations": []
+  }
+}

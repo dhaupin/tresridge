@@ -1,0 +1,12 @@
+{
+  "id": "unknown-rule",
+  "base": false,
+  "add": {},
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "unknown-rule"
+    ]
+  }
+}

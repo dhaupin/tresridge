@@ -1,0 +1,8 @@
+{
+  "violations": [
+    "dangling-ref"
+  ],
+  "warnings": [
+    "baseline-unmatched"
+  ]
+}

@@ -1,0 +1,53 @@
+# Deploy Docs - a THIN caller of THE one docs lane (dhaupin/freestruct).
+#
+# This repo used to carry its own reusable lane (docs-build.yml) and a thin
+# caller (docs-deploy.yml). That fork was the same runbook as freestruct's
+# docs-lane.yml and the two had drifted (ruby 3.2 vs 3.4, pagefind `latest`
+# scrape vs npm pin). The fork is gone: the family builds docs from ONE lane,
+# and this repo is a caller like every sibling (the consolidation).
+#
+# What the caller owns: the trigger, the permissions (the caller grants the
+# pages: write + id-token: write ceiling the deploy half needs), the
+# concurrency group, and the input pins that are this repo's (ruby 3.4 - the
+# Gemfile's bigdecimal note is a Ruby 3.4 fact; the engine pinned EXACT, never
+# a range). The lane owns the runbook, the pinned tool installs, and the
+# main-gated deploy job.
+#
+# The docs baseurl is generated from site.config.js (see docs/_config.yml);
+# set the Pages custom domain once in the repo's Pages settings.
+
+name: Deploy Docs
+
+on:
+  push:
+    # staging validates the docs build too (a docs change that breaks the
+    # build should red-light on the integration branch, not surprise the
+    # promotion); the lane's deploy job is gated to main, so staging never
+    # publishes.
+    branches: [main, staging]
+    # The docs identity (docs/_config.yml, docs/freestruct.config.yml) is
+    # GENERATED from site.config.js by the sync verb, so an identity-only edit
+    # there is a real docs change: list the identity file (and the sync
+    # entrypoint, where it is a repo file) or the filter misses a
+    # name/description/url change unless the regenerated files rode the same
+    # commit (issue #49).
+    paths: ['docs/**', 'site.config.js', '.github/workflows/docs-deploy.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  docs:
+    # Pinned to the lane's SHA (pins, never floats): a moving @main would let
+    # the runbook change under us between runs.
+    uses: dhaupin/freestruct/.github/workflows/docs-lane.yml@7dfb1722d16b2ee173e8d4cbbd6106eecec11a1a # main
+    with:
+      ruby-version: '3.4'
+      freestruct-version: '1.3.0'

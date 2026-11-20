@@ -1,0 +1,19 @@
+{
+  "id": "literal-keeps-teeth",
+  "base": false,
+  "add": {
+    "npcs/npc_smith.tres": "script_class=\"NpcData\"\nid = \"npc_smith\"\nhome_zone_id = \"zn_haven\"\nservice_id = \"BlacksmithService\"\n"
+  },
+  "extraEdges": [
+    {
+      "family": "npcs",
+      "field": "service_id",
+      "target": "zones",
+      "kind": "literal"
+    }
+  ],
+  "overrideEdges": [],
+  "expect": {
+    "violations": []
+  }
+}

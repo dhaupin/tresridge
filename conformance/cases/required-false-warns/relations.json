@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "families": [
+    {
+      "key": "npcs",
+      "schema": "NpcData",
+      "idPrefix": ""
+    },
+    {
+      "key": "zones",
+      "schema": "ZoneData",
+      "idPrefix": ""
+    },
+    {
+      "key": "loot_tables",
+      "schema": "LootData",
+      "idPrefix": ""
+    }
+  ],
+  "edges": [
+    {
+      "family": "npcs",
+      "field": "home_zone_id",
+      "target": "zones",
+      "kind": "ref",
+      "required": false
+    },
+    {
+      "family": "loot_tables",
+      "field": "entries.item_id",
+      "target": "zones",
+      "kind": "nested"
+    }
+  ],
+  "virtualFamilies": {
+    "npc": "npcs"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "name": "tresridge",
+  "version": "0.1.0",
+  "description": "The .tres relation standard: one edge grammar, one resolution contract, many hosts.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "tresridge": "bin/cli.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "spec",
+    "profiles"
+  ],
+  "scripts": {
+    "test": "node test/battery.mjs",
+    "matrix:gen": "node scripts/gen-refusal-matrix.mjs",
+    "matrix:check": "node scripts/gen-refusal-matrix.mjs --check",
+    "check:tool": "npm test && npm run matrix:check && npm run vocab:check",
+    "check": "npm run check:tool && npm run site:check",
+    "prepublishOnly": "npm run check",
+    "vocab:check": "node scripts/check-vocabulary.mjs",
+    "vocab:write": "node scripts/check-vocabulary.mjs --write",
+    "site:check": "coreforge check",
+    "site:doctor": "coreforge doctor",
+    "site:sync": "coreforge sync",
+    "site:sync:check": "coreforge sync --check",
+    "site:build": "npm run build --prefix web",
+    "site:docs": "cd docs && bundle exec jekyll build",
+    "site:dev": "npm run dev --prefix web"
+  },
+  "keywords": [
+    "tres",
+    "godot",
+    "graph",
+    "relations",
+    "spec",
+    "lint",
+    "dangling-reference"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dhaupin/tresridge.git"
+  },
+  "devDependencies": {
+    "coreforge": "^1.0.0"
+  }
+}

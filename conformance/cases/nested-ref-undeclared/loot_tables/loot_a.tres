@@ -1,0 +1,7 @@
+[resource]
+script_class="LootData"
+id = "loot_a"
+entries = [{
+"item_id": "zn_haven",
+"rival_id": "zn_haven"
+}]

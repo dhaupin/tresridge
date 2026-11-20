@@ -1,0 +1,14 @@
+{
+  "id": "undeclared-family",
+  "base": false,
+  "add": {
+    "quests/qst_one.tres": "script_class=\"QuestData\"\nid = \"qst_one\"\n"
+  },
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "undeclared-family"
+    ]
+  }
+}
