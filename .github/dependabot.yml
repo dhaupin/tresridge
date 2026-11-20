@@ -16,11 +16,17 @@
 # templates are excluded - their package.json files are test data, not
 # toolchains). The github-actions ecosystem moves the SHA-pinned refs
 # (packstruct#69) without a hand-edit.
+#
+# Every ecosystem targets staging, not the default branch: staging is the
+# integration branch, so an update has to pass the full suite there before it
+# can ride a promotion to main. Without target-branch, Dependabot opens on
+# main and skips the one place the family flow says a change is validated.
 
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    target-branch: staging
     schedule:
       interval: weekly
       day: monday
@@ -37,6 +43,7 @@ updates:
 
   - package-ecosystem: npm
     directory: /web
+    target-branch: staging
     schedule:
       interval: weekly
       day: monday
@@ -53,6 +60,7 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
+    target-branch: staging
     schedule:
       interval: weekly
       day: monday
