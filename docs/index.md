@@ -25,7 +25,7 @@ A single convention resolves most edges with no declaration:
 > The target family is the last family token in the field name, pluralised.
 > `giver_npc_id` to `npc`, `source_zone_id` to `zones`, `secondary_loot_table_id` to `loot_tables`.
 
-This is inference, not the contract. It seeds a declaration; the declaration is authoritative. Measured on the reference deployment, the rule resolves 344 edges and leaves 14 fields to declare by hand.
+This is inference, not the contract. It seeds a declaration; the declaration is authoritative. Measured on the reference deployment, the rule resolves 57 of the host's 73 declared edge pairs and leaves 16 to declare by hand.
 
 ## Highlighting works out of the box
 

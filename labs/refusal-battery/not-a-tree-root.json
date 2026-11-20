@@ -1,0 +1,12 @@
+{
+  "id": "not-a-tree-root",
+  "base": false,
+  "add": {},
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "not-a-tree-root"
+    ]
+  }
+}

@@ -71,6 +71,18 @@
       "severity": "warning",
       "section": "9",
       "detail": "a baseline excuses a refusal that no longer occurs; reported so it can be retired"
+    },
+    {
+      "code": "not-a-tree-root",
+      "severity": "violation",
+      "section": "1",
+      "detail": "the root passed is not the tree root: its children are records (a family directory), or one family spans many directories and schemas (a directory above the tree root), so no edge can resolve"
+    },
+    {
+      "code": "empty-tree",
+      "severity": "violation",
+      "section": "1",
+      "detail": "the root holds no .tres records, so a clean verdict would be vacuous"
     }
   ]
 }

@@ -1,0 +1,12 @@
+{
+  "id": "empty-tree",
+  "base": false,
+  "add": {},
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "empty-tree"
+    ]
+  }
+}

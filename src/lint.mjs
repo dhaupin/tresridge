@@ -37,6 +37,9 @@ export function validateDeclaration(decl, opts = {}) {
   }
   if (!Array.isArray(decl?.families)) out.push('declaration families MUST be an array');
   if (!Array.isArray(decl?.edges)) out.push('declaration edges MUST be an array');
+  // Nothing below can run meaningfully over a non-array: `buildContext` maps both,
+  // so continuing turns a named shape refusal into a raw TypeError at the call site.
+  if (out.length) return out;
 
   const seenFamily = new Set();
   for (const f of decl?.families || []) {

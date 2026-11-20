@@ -12,6 +12,8 @@
 // `lint()` (the CLI's `--rules <module>`), each shaped like an entry here. An extra
 // rule whose code the vocabulary does not name is itself refused (`unknown-rule`).
 
+import { rootProblem } from './tres.mjs';
+
 export const KINDS = ['ref', 'refs', 'nested', 'virtual', 'literal'];
 export const SCHEMA_VERSION = 1;
 
@@ -235,6 +237,31 @@ export const RULES = [
   },
 
   // -- tree scope: the corpus against the declaration -------------------------
+  {
+    code: 'empty-tree',
+    severity: 'violation',
+    scope: 'tree',
+    run(ctx) {
+      // A clean verdict over zero records is vacuous, and vacuous is the shape a
+      // silent pass takes. Refuse it so a wrong root cannot read as a pass.
+      if (ctx.tree.records.length) return [];
+      return [{ code: 'empty-tree', record: ctx.tree.root || '(tree)', detail: `no .tres records under the root - a clean verdict here would be vacuous` }];
+    },
+  },
+  {
+    code: 'not-a-tree-root',
+    severity: 'violation',
+    scope: 'tree',
+    run(ctx) {
+      // SPEC section 1: the root is the directory whose children are family
+      // directories. A root above it collapses the corpus into one family (0 edges);
+      // a root below it turns every record into a family. Both read as plausible
+      // trees, so they are refused rather than guessed at.
+      const problem = rootProblem(ctx.tree, ctx.tree.root || '(tree)');
+      if (!problem || problem.code !== 'not-a-tree-root') return [];
+      return [{ code: 'not-a-tree-root', record: ctx.tree.root || '(tree)', detail: problem.detail }];
+    },
+  },
   {
     code: 'undeclared-family',
     severity: 'violation',
@@ -527,6 +554,13 @@ export function runRules(tree, decl, opts = {}) {
   const declFindings = [];
   for (const rule of RULES) {
     if (rule.scope !== 'declaration') continue;
+    declFindings.push(...(rule.run(ctx) || []));
+  }
+  // Host rules run at declaration scope too. Skipping them here was a silent skip:
+  // `--rules` promises that host rules ADD findings, and a rule whose whole check is
+  // about the declaration would never have run.
+  for (const rule of extra) {
+    if ((rule.scope || 'tree') !== 'declaration') continue;
     declFindings.push(...(rule.run(ctx) || []));
   }
 

@@ -50,7 +50,24 @@ A single convention resolves most edges with no declaration:
 > **The target family is the last family token in the field name, pluralised.**
 > `giver_npc_id` → `npc` · `source_zone_id` → `zones` · `secondary_loot_table_id` → `loot_tables`
 
-This is **inference, not the contract** - it seeds a declaration. Measured on the reference deployment: the rule resolves **344 edges** and leaves **14 fields** to declare by hand.
+This is **inference, not the contract** - it seeds a declaration. Measured on the committed fixture ([`conformance/fixture/`](conformance/fixture/)), which anyone can re-run, the rule resolves every edge it can and leaves the rest as named residue:
+
+<!-- BEGIN GENERATED: fixture measurement -->
+
+| the committed fixture | |
+|---|---|
+| families | 6 |
+| records | 13 |
+| edges inferred | 3 |
+| residue fields | 2 |
+| edges declared | 5 |
+| edges resolved | 11 |
+| violations | 0 |
+| warnings | 0 |
+
+<!-- END GENERATED: fixture measurement -->
+
+Two residue fields survive: `npcs.class_id` and `npcs.book_id`. The first is a real reference the rule cannot guess (no `class` token in the field name resolves to `classes`); the second is a virtual key that is not a record id at all. Both are declared by hand in the fixture's `relations.json`, which is why the fixture lints clean.
 
 ## Enforcement is mechanical
 
@@ -101,7 +118,7 @@ family's sites run - adopted here, not vendored.
 
 ## Status
 
-**v0.1 - the first cut (2026-11-17).** The spec, the front door, and the CLI land together. The extraction is proven, and the tool now proves itself: the refusal battery observes every verdict from a real lint run and refuses its own run on dishonesty. Measured on the reference deployment: 55 families, 1097 records, 61 declaration edges (49 inferred / 12 needing declaration), 6 real dangling refusals.
+**v0.1 - the first cut (2026-11-17).** The spec, the front door, and the CLI land together. The extraction is proven, and the tool now proves itself: the refusal battery observes every verdict from a real lint run and refuses its own run on dishonesty. The numbers this repo publishes are measured from the committed fixture above, never remembered; the reference deployment's own figures are a dated snapshot in [`labs/`](labs/).
 
 **M0** spec text - *done* · **M1** the CLI (`lint` / `graph` / `doctor`) - *done* · **M2** conformance harness + npm publish - *partial* (battery + cases ship; publish pending) · **M3** the reference deployment adopts - *designed* · **M4** the site rig (coreforge landing + docs) - *shipped in this branch*.
 

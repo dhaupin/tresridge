@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "families": [
+    {
+      "key": "classes",
+      "schema": "ClassData",
+      "idPrefix": ""
+    },
+    {
+      "key": "items",
+      "schema": "ItemData",
+      "idPrefix": ""
+    },
+    {
+      "key": "loot_tables",
+      "schema": "LootData",
+      "idPrefix": ""
+    },
+    {
+      "key": "npcs",
+      "schema": "NpcData",
+      "idPrefix": ""
+    },
+    {
+      "key": "worlds",
+      "schema": "WorldData",
+      "idPrefix": ""
+    },
+    {
+      "key": "zones",
+      "schema": "ZoneData",
+      "idPrefix": ""
+    }
+  ],
+  "edges": [
+    {
+      "family": "loot_tables",
+      "field": "entries.item_id",
+      "target": "items",
+      "kind": "nested",
+      "required": true
+    },
+    {
+      "family": "npcs",
+      "field": "home_zone_id",
+      "target": "zones",
+      "kind": "ref",
+      "required": true
+    },
+    {
+      "family": "npcs",
+      "field": "class_id",
+      "target": "classes",
+      "kind": "ref",
+      "required": false
+    },
+    {
+      "family": "npcs",
+      "field": "book_id",
+      "kind": "virtual",
+      "pattern": "book_<npc>_<tier>",
+      "required": false
+    },
+    {
+      "family": "zones",
+      "field": "world_id",
+      "target": "worlds",
+      "kind": "ref",
+      "required": true
+    }
+  ]
+}

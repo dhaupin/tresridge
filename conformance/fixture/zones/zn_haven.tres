@@ -1,0 +1,4 @@
+script_class="ZoneData"
+id = "zn_haven"
+name = "Haven"
+world_id = "world_a"

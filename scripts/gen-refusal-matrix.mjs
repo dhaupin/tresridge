@@ -210,6 +210,29 @@ const cases = [
     baselines: [{ code: 'dangling-ref', record: 'npcs/npc_ghost.tres', reason: 'stale excuse' }],
     expect: { codes: [], warnCodes: ['baseline-unmatched'] },
   },
+  {
+    id: 'not-a-tree-root',
+    // SPEC section 1: the root must be the directory whose children are FAMILIES.
+    // Here one family spans two directories and two schemas - the shape a project
+    // root above the data dir produces, where no edge can resolve. It read as a
+    // clean 0-edge tree and exited 0 before this rule existed.
+    files: {
+      'data/zones/zn_a.tres': 'script_class="ZoneData"\nid = "zn_a"\n',
+      'data/npcs/npc_a.tres': 'script_class="NpcData"\nid = "npc_a"\n',
+    },
+    families: [{ key: 'data', idPrefix: '' }],
+    overrideEdges: [],
+    expect: { codes: ['not-a-tree-root'] },
+  },
+  {
+    id: 'empty-tree',
+    // a root with no records cannot produce a meaningful verdict; a clean pass over
+    // nothing is the vacuous shape a silent failure takes.
+    files: {},
+    families: [],
+    overrideEdges: [],
+    expect: { codes: ['empty-tree'] },
+  },
 ];
 
 /** Read every file under a dir into a { relPath: contents } map. */
@@ -226,7 +249,9 @@ function walkFiles(dir, base = dir, out = {}) {
 function materialize(c) {
   const dir = mkdtempSync(join(tmpdir(), 'tresridge-'));
   const base = c.base ? CLEAN : CLEAN;
-  const files = { ...base.files, ...(c.add || {}) };
+  // `files` REPLACES the base file set (the empty-tree case needs a genuinely empty
+  // root, which merging onto CLEAN could never produce).
+  const files = c.files ? { ...c.files, ...(c.add || {}) } : { ...base.files, ...(c.add || {}) };
   for (const [rel, body] of Object.entries(files)) {
     const full = join(dir, rel);
     mkdirSync(dirname(full), { recursive: true });
