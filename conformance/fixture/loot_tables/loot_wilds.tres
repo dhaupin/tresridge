@@ -1,0 +1,7 @@
+[resource]
+script_class="LootData"
+id = "loot_wilds"
+entries = [{
+"item_id": "it_potion",
+"weight": 2
+}]

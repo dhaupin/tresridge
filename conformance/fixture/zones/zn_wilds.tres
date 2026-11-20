@@ -1,0 +1,4 @@
+script_class="ZoneData"
+id = "zn_wilds"
+name = "Wilds"
+world_id = "world_a"

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "families": [
+    {
+      "key": "data",
+      "idPrefix": ""
+    }
+  ],
+  "edges": [],
+  "virtualFamilies": {
+    "npc": "npcs"
+  }
+}

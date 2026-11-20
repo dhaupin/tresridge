@@ -57,6 +57,24 @@ family membership: the rig is `coreforge`, the tool is ours.
   (SPEC section 2 carries the table).
 - Fixtures under `conformance/cases/` carry the refusal each norm exists for. A new norm
   ships with a case that breaks it, or it is not a norm.
+- **A clean exit over nothing is a bug, not a pass.** Every defect this tool has shipped was
+  the same shape: exit 0 while measuring the wrong thing (a root above the tree root inferred
+  0 edges; `doctor` summarised a tree with no declaration; `--against` compared keys and
+  missed a retargeted edge). When you add a verb or a gate, ask what it does when it has
+  nothing to judge, and make that exit `2`, never `0`.
+- **Test the binary, not just the library.** `test/cli.mjs` spawns `bin/cli.mjs` over real
+  bytes in temp dirs and asserts stdout/stderr/exit code. The library tests all passed while
+  the CLI silently passed a 0-edge tree, because nothing ran the program. Mutation-test every
+  guard: revert the fix, watch the suite fail, restore it. A check that cannot fail is not a
+  check.
+- **Published numbers are measured by a gate.** `scripts/check-docs.mjs` measures
+  `conformance/fixture/` and refuses when the README block disagrees; `docs:write` regenerates
+  it. Never hand-edit a count in the README or the spec table. A number you cannot re-run
+  belongs in `labs/` as a dated snapshot with its units named.
+- **Widening a declaration is not drift.** `diffDeclaration` compares targets as a SET: a
+  union that contains the inferred target is a human refinement. Only an omission (or a kind
+  flip) is drift. Do not "simplify" this to equality - the reference deployment widens two
+  rows to seven families and would be reported as broken.
 - The reader is host-neutral: `src/tres.mjs` knows nothing about any particular game's
   vocabulary. Do not put a rule in the standard that only one host can satisfy.
 - Zero runtime dependencies. Node ESM. Exit codes 0/1/2.

@@ -1,0 +1,10 @@
+[resource]
+script_class="LootData"
+id = "loot_haven"
+entries = [{
+"item_id": "it_blade",
+"weight": 3
+}, {
+"item_id": "it_potion",
+"weight": 1
+}]

@@ -17,6 +17,7 @@ npx tresridge lint <tree> [--decl <file>] [--rules <module>] [--json]
 npx tresridge graph <tree> [--out <file>] [--against <file>] [--json]
 npx tresridge doctor <tree> [--decl <file>] [--rules <module>]
 npx tresridge rules [--json]
+npx tresridge --version
 ```
 
 ## The verbs
@@ -27,6 +28,42 @@ npx tresridge rules [--json]
 | `graph` | infer a first-draft declaration from the tree (writes a draft). |
 | `doctor` | lint plus the graph residue, and a summary of what needs declaring. |
 | `rules` | list the refusal vocabulary ([`spec/refusals.json`](https://github.com/dhaupin/tresridge/blob/main/spec/refusals.json)), one source. |
+
+## The contract root
+
+`<tree>` is the **tree root**: the directory whose children are family directories
+(SPEC section 1). It is not your project root, and it is not one family directory.
+
+```bash
+npx tresridge graph .                    # WRONG: one "family" called `game`, 0 edges
+# tresridge: not-a-tree-root: family "game" holds 1086 records across 70 directories
+#   and 60 schemas - the root is above the tree root, so no edge can resolve
+#   try: ./game/data
+```
+
+Getting this wrong used to be silent. Pointing at a project root collapsed every
+record into a single family, so no `_id` field could ever match a target family: the
+tool inferred **0 edges** and exited **0**, which reads as a clean tree. Pointing at a
+family directory instead made every `.tres` its own family. Both now refuse with
+`not-a-tree-root` and name the directory that does look like a root.
+
+The two conditions are deliberately narrow, because a legal tree must never trip them:
+
+- a root **above** the tree root fires only when one family spans several directories
+  **and** several schemas. A mixed family is legal (SPEC section 2), so schema
+  diversity alone is not evidence.
+- a root **below** the tree root fires when family keys end in `.tres`, i.e. the
+  root's children are records.
+
+An empty directory refuses too (`empty-tree`): a clean verdict over zero records is
+vacuous, and vacuous is the shape a silent failure takes.
+
+## The declaration
+
+`--decl` defaults to `<tree>/relations.json`, then `./relations.json`. The declaration
+is the tree's own artifact, so `tresridge doctor data/` finds `data/relations.json`
+from any working directory, and a stale `./relations.json` cannot silently judge a
+different tree.
 
 ## The adoption on-ramp: `graph`
 
@@ -44,13 +81,24 @@ The residue - the fields the resolution rule could not resolve - is printed as a
 short, honest list: these need your call.
 
 `--against <file>` turns `graph` into a drift gate. It diffs the declaration the
-tree implies against a committed one and reports what was added or removed, so a
-record that quietly stopped being referenced fails the build instead of shipping.
+tree implies against a committed one and reports what was added, removed, or
+**changed**, so a record that quietly stopped being referenced - or a row that
+quietly points at the wrong family - fails the build instead of shipping.
 
 ```bash
 npx tresridge graph data/ --against relations.json
-# graph --against: 0 added, 0 removed
+# graph --against: 0 added, 0 removed, 0 changed
 ```
+
+A `changed` row is one that exists on both sides but means something different:
+the same `(family, field)` targeting another family, or carrying another `kind`.
+Comparing only the pair was a hole - a declaration could retarget an edge at a
+family that does not hold its ids, and the gate reported "0 added, 0 removed"
+while the lint enforced the wrong target in silence.
+
+Widening a row to a **union** of families is a legitimate human refinement, not
+drift, so a union that contains the inferred target agrees with inference. A union
+that omits it does not: the ids live somewhere the declaration will not look.
 
 ## The verdict: `lint`
 
@@ -75,8 +123,13 @@ answers both questions: what is broken, and what still needs declaring.
 ```bash
 npx tresridge doctor data/ --decl relations.json
 # 55 families, 1097 records
-# edges inferred 57 | needs declaring 16 | declared edges 73 | violations 6
+# edges inferred 57 | needs declaring 16 | declared edges 73 | violations 0
 ```
+
+`doctor` refuses (exit `2`) when there is no declaration to judge against, and
+reports a malformed one as `DECL` errors (exit `1`). It is the first verb a host
+runs, so a summary over a tree it never judged would be the most convincing
+possible silent pass. `--json` emits the same summary as data.
 
 ## The vocabulary: `rules`
 

@@ -2,7 +2,7 @@
 // Host-neutral: it knows nothing about any particular game's vocabulary.
 
 import { readFileSync, readdirSync } from 'node:fs';
-import { join, basename, relative } from 'node:path';
+import { join, basename, relative, dirname } from 'node:path';
 
 /** Walk `root` and return every `.tres` file path, recursively. */
 export function walkTres(root) {
@@ -146,6 +146,8 @@ export function readTree(root) {
   const records = [];
   const idsByFamily = new Map();
   const schemaByFamily = new Map();
+  const schemasByFamily = new Map();
+  const dirsByFamily = new Map();
 
   for (const file of files) {
     const rel = relative(root, file).split('\\').join('/');
@@ -156,13 +158,84 @@ export function readTree(root) {
     if (!idsByFamily.has(family)) idsByFamily.set(family, new Set());
     idsByFamily.get(family).add(id);
     if (scriptClass && !schemaByFamily.has(family)) schemaByFamily.set(family, scriptClass);
+    if (scriptClass) {
+      if (!schemasByFamily.has(family)) schemasByFamily.set(family, new Set());
+      schemasByFamily.get(family).add(scriptClass);
+    }
+    if (!dirsByFamily.has(family)) dirsByFamily.set(family, new Set());
+    dirsByFamily.get(family).add(rel.split('/').slice(0, -1).join('/'));
   }
 
   const families = [...idsByFamily.keys()].sort().map((key) => ({
     key,
     schema: schemaByFamily.get(key) || '',
     count: idsByFamily.get(key).size,
+    schemas: [...(schemasByFamily.get(key) || [])].sort(),
+    dirs: [...(dirsByFamily.get(key) || [])].sort(),
   }));
 
   return { root, families, records, idsByFamily };
+}
+
+/**
+ * Why a root is probably not the contract root (SPEC section 1), or null.
+ *
+ * The contract root is "the directory whose children are family directories". Two
+ * mistakes read as a plausible tree and silently produce a useless graph:
+ *
+ *   - one level TOO HIGH: every record lands in one family (a project root above
+ *     `game/data/`), so no edge can resolve. 0 edges, exit 0.
+ *   - one level TOO LOW: a family directory is passed as the root, so every `.tres`
+ *     becomes its own family and the declaration is nonsense.
+ *
+ * Both are refused rather than guessed at. The walker cannot know which directory the
+ * author meant, and guessing is the brittle frame this standard exists to end. Returns
+ * { code, detail, hints } where hints name directories that do read as tree roots.
+ */
+export function rootProblem(tree, root) {
+  const { families, records } = tree;
+
+  if (!records.length) {
+    return {
+      code: 'empty-tree',
+      detail: `no .tres files under ${root} - nothing to check`,
+      hints: [],
+    };
+  }
+
+  // A family key carrying a `.tres` suffix means the root IS a family directory: its
+  // children are records, not families.
+  const fileKeys = families.filter((f) => f.key.endsWith('.tres'));
+  if (fileKeys.length) {
+    return {
+      code: 'not-a-tree-root',
+      detail: `the root's children are records, not families (${fileKeys.length} family key(s) end in .tres) - pass the directory whose children are family directories`,
+      hints: [dirname(root)],
+    };
+  }
+
+  // One family spanning several directories AND several schemas is a directory ABOVE
+  // the tree root: the real families are inside it. A mixed family is legal (SPEC
+  // section 2 - the reference tree's `balance/` holds ten schemas), so both conditions
+  // are required before this fires.
+  const collapsed = families.filter((f) => f.schemas.length > 1 && f.dirs.length > 1);
+  if (collapsed.length) {
+    const worst = collapsed.sort((a, b) => b.count - a.count)[0];
+    const inside = [...new Set(worst.dirs.map((d) => d.split('/')[1]).filter(Boolean))].sort();
+    return {
+      code: 'not-a-tree-root',
+      detail: `family ${JSON.stringify(worst.key)} holds ${worst.count} records across ${worst.dirs.length} directories and ${worst.schemas.length} schemas - the root is above the tree root, so no edge can resolve`,
+      hints: inside.length ? inside.map((d) => join(root, worst.key, d)) : [join(root, worst.key)],
+    };
+  }
+
+  return null;
+}
+
+/** A hint is only useful if it actually reads as a tree root. */
+export function looksLikeTreeRoot(dir) {
+  try {
+    if (!walkTres(dir).length) return false;
+    return rootProblem(readTree(dir), dir) === null;
+  } catch { return false; }
 }

@@ -1,0 +1,5 @@
+script_class="NpcData"
+id = "npc_smith"
+home_zone_id = "zn_haven"
+class_id = "cls_warrior"
+book_id = "book_npc_smith_epic"

@@ -2,7 +2,7 @@
 
 **Status:** v0.1 - the first cut (2026-11-17) · Owner: dhaupin
 **Role:** the relation arm. It owns the edge grammar and the resolution contract that any content graph exchanges under.
-**Package:** `tresridge` @ 0.1.0 (node >=20, ESM, zero runtime deps). NOT yet on npm (`npm view tresridge` = E404); the 0.1.x manual publish is the one outstanding M0 item.
+**Package:** `tresridge` @ 0.9.0 (node >=20, ESM, zero runtime deps). The first registry cut is the 0.9.x manual lane (`npm publish` from a clean `main`); the tag-driven OIDC ladder begins at 1.0.0.
 **Core law:** declare the edge, resolve or refuse. The edge declaration is the shared-facts column; everything else about a record is host-owned and never refused.
 **Family model:** borrowed from the struct family - **govstruct** (govern), **packstruct** (spec), **memstruct** (memory), **gamestruct** (agents + a11y), **eyestruct** (watch), **poststruct** (audit), **prestruct** (SSR), **freestruct** (SSG); forges **monoforge** / **coreforge**, composer **railyard**. tresridge adopts their **model** (the spec/labs/conformance layout, the refusal battery, the no-fiction generator, the named refusals, the 0/1/2 exit ladder) but is **not on the family roster**: it is a **synmergia project** - no govstruct registry entry, no `members/tresridge.json`, no family-domain site. It owns how records reference each other; the interop law is that no host imports a sibling to check a sibling, it invokes the sibling's public CLI.
 
@@ -54,7 +54,7 @@ tresridge ships as a **general, MIT-licensed, zero-dependency spec plus a lint C
 | The resolution rule (last family token, pluralised) | the spec | the `.tres` id conventions |
 | The lint (`lint` / `graph` / `doctor`) | the tool | run in the game CI + the web build |
 | The family vocabulary (`npc`, `zone`, `loot_table`, …) | config (data) | Synmergia's `game/data/` directory tree |
-| The substrate (a GDScript const, a generated manifest) | the host's choice | `game/core/data/relations.gd` |
+| The substrate (a GDScript const, a generated manifest) | the host's choice | `game/data/relations.json` |
 | The consumers (runtime loader, docs, Codex) | the host's | `data_service.gd`, the baseline, the Codex "Related" panel |
 
 **The one-sentence test for every section below:** *would a stranger with their own tree of records be able to use this?* If a section only makes sense inside Synmergia, it belongs in the reference deployment, not the spec.
@@ -163,10 +163,10 @@ A new host joins by answering three questions, in order, never by forking the gr
 
 ## 14. Milestones
 
-- **M0 - spec text.** `spec/SPEC.md` plus README plus this PRD. **IN PROGRESS** - this PRD is the first cut; the frozen `SPEC.md` follows.
-- **M1 - the probe becomes a CLI.** `lint` / `graph` / `doctor` over a declaration file, zero-dep, MIT. **PARTIAL** - the probe (`scripts/tresridge_probe.mjs`) proves the extraction and the residue; the declaration file and the exit contract are the remaining work.
-- **M2 - conformance harness plus publish.** Fixture trees (one clean, one per refusal norm), npm publish, each host pins `tresridge@0.1`. **NOT STARTED.**
-- **M3 - the reference deployment adopts.** Synmergia authors `game/core/data/relations.gd`, rewrites the 2272-line regex lint as assertions over the walker, and generates the authoring-baseline tables from the declaration. **DESIGNED** - see the reference deployment's `labs/prd-data-graph.md`.
+- **M0 - spec text.** `spec/SPEC.md` plus README plus this PRD. **DONE.**
+- **M1 - the probe becomes a CLI.** `lint` / `graph` / `doctor` / `rules` over a declaration file, zero-dep, MIT. **DONE** - the exit contract (`0` clean / `1` violations / `2` usage) is specified and tested; `test/cli.mjs` runs the binary.
+- **M2 - conformance harness plus publish.** Fixture trees (one clean, one per refusal norm), npm publish, each host pins `tresridge@0.1`. **PARTIAL** - `conformance/fixture/` is a committed clean tree, the refusal battery observes 26 rows, and the docs gate measures the fixture; npm publish is the remaining work.
+- **M3 - the reference deployment adopts.** Synmergia authors `game/data/relations.json`, rewrites the 2272-line regex lint as assertions over the walker, and generates the authoring-baseline tables from the declaration. **DESIGNED** - see the reference deployment's `labs/prd-data-graph.md`.
 
 ## 15. Non-goals
 

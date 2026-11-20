@@ -2,19 +2,26 @@
 
 One relation grammar, many hosts. This document is normative for any host that keeps a tree of records which reference each other, and for anyone authoring a family or an edge.
 
-**Revision history.** v1.0.0 froze the family table and the edge table against the reference deployment's production reality (Synmergia: 1097 records, 55 families, 344 edges, measured 2026-11-17). The frozen grammar is a *picture of what the corpus already does* - the id conventions, the reference fields, the resolution the loader and the docs already assume - not a redesign of them. Ordering rule: code first, spec formalizes after; nothing schema-changing is hidden on the host side.
+**Revision history.** v1.0.0 froze the family table and the edge table against the reference deployment's production reality (Synmergia: 1097 records, 55 families; the dated measurement is in section 0.1). The frozen grammar is a *picture of what the corpus already does* - the id conventions, the reference fields, the resolution the loader and the docs already assume - not a redesign of them. Ordering rule: code first, spec formalizes after; nothing schema-changing is hidden on the host side.
 
-**Schema base (verified 2026-11-17, the reference deployment's probe):** the corpus ships **1097 `.tres` records across 55 directories**; a convention-only resolver extracts **344 edges**, leaves **14 fields** with no target convention, and finds **6 dangling** targets. v1 formalizes that reality; hosts either already conform (Synmergia) or adopt it fresh.
+**Schema base (the reference deployment's probe, 2026-11-17):** the corpus ships **1097 `.tres` records across 55 family directories**; a convention-only resolver extracts **57 inferred edge pairs**, leaves **16 fields** with no target convention (49 record-field occurrences), and the host's declaration resolves **607 reference instances** with **0 violations**. v1 formalizes that reality; hosts either already conform (Synmergia) or adopt it fresh.
 
-**Units, named (this cost a whole session).** "Edge" was used for three different things and the numbers looked contradictory until they were separated:
+These figures are a **dated snapshot of a host tree this repo cannot see**, so they are not gated here - a number nobody can re-run is how the earlier drift started. The numbers this repo *does* publish are measured from `conformance/fixture/` on every CI run (see the README block and `scripts/check-docs.mjs`).
+
+### 0.1 Units, named (this cost a whole session)
+
+"Edge" was used for three different things and the numbers looked contradictory until they were separated:
 
 | Unit | Count | Meaning |
 |---|---|---|
-| declaration edge | **61** | a distinct `(family, field)` pair - one row in `relations.json` |
-| reference instance | **405** | one id value in one field on one record |
-| inferred edge | **344** | reference instances whose field name resolves by the rule |
+| declaration edge | **73** | a distinct `(family, field)` pair - one row in `relations.json` |
+| inferred edge pair | **57** | declaration edges whose field name resolves by the rule alone |
+| residue field | **16** | declaration edges the rule cannot resolve; a human declared them |
+| reference instance | **607** | one id value in one field on one record, as the lint counts it |
 
-The 61 pairs split **49 inferred / 12 needing declaration**; the 405 instances split **367 resolved / 38 unresolved / 7 non-id** (PascalCase class names in `_id` fields, which are `literal`). Any host quoting a single number MUST name its unit.
+The 73 pairs split **57 inferred / 16 needing declaration** - the two halves are exact and must always sum to the declaration. The host's declaration additionally carries **9 `literal` rows**, which are human decisions about `_id` fields that hold a non-id (a PascalCase class name), so a host counting by `kind` will see 49 `ref` + 8 `refs` + 7 `nested` + 9 `literal` = 73.
+
+**Any host quoting a single number MUST name its unit.** The old text here said 61/344/405/367 and none of those survived a re-measure; the pairs/instances split is what makes the numbers checkable at all.
 
 ## 1. Directory contract (all hosts)
 
@@ -25,7 +32,9 @@ The 61 pairs split **49 inferred / 12 needing declaration**; the 405 instances s
   relations.json                # the declaration: families + edges (this spec's artifact)
 ```
 
-**The contract root.** The lint/graph contract root is the **tree root** - the directory whose children are family directories - never one family directory itself. A host that mirrors this in its own CLI reference cites this section rather than restating it.
+**The contract root.** The lint/graph contract root is the **tree root** - the directory whose children are family directories - never one family directory itself, and never a directory above it. A host that mirrors this in its own CLI reference cites this section rather than restating it.
+
+This is **enforced, not merely stated** (v0.1.1). A root above the tree root collapses every record into one family, so no edge can resolve and the run looks clean; a root below it turns every record into its own family. Both refuse with `not-a-tree-root` and name a directory that does read as a root. A root holding no records refuses with `empty-tree`, because a clean verdict over nothing is vacuous. The detection is deliberately narrow - one family spanning several directories **and** several schemas for "too high", family keys ending in `.tres` for "too low" - so a legal tree, including a mixed family (section 2), never trips it.
 
 ## 2. The family (frozen for v1)
 
@@ -94,7 +103,7 @@ A single convention seeds a declaration:
 > **The target family is the last family token in the field name, pluralised.**
 > `giver_npc_id` → `npc` · `source_zone_id` → `zones` · `secondary_loot_table_id` → `loot_tables`
 
-**This is INFERENCE.** It exists so that `tresridge graph` can derive a first-draft declaration from an existing tree, and so authoring stays pleasant. It is never the contract, and **a conforming lint MUST NOT infer at check time**: the declared graph is authoritative, and a check that guesses is exactly the brittle frame this spec exists to end. Measured residue on the reference deployment: the rule resolves 344 edges and leaves 14 fields to declare by hand.
+**This is INFERENCE.** It exists so that `tresridge graph` can derive a first-draft declaration from an existing tree, and so authoring stays pleasant. It is never the contract, and **a conforming lint MUST NOT infer at check time**: the declared graph is authoritative, and a check that guesses is exactly the brittle frame this spec exists to end. Measured residue on the reference deployment: the rule resolves **57** of the host's **73** declared edge pairs and leaves **16** to declare by hand (section 0.1).
 
 ## 7. Errors (nameable, instant)
 
@@ -114,6 +123,8 @@ A conforming lint refuses with a one-line error naming the record, the field, an
 | `unknown-rule` | violation | 7 | a profile or baseline names a refusal code the vocabulary does not carry |
 | `baseline-expired` | violation | 9 | a baseline's expiry has passed; the acknowledged refusal is no longer excused |
 | `baseline-unmatched` | warning | 9 | a baseline excuses a refusal that no longer occurs; reported so it can be retired |
+| `not-a-tree-root` | violation | 1 | the root passed is not the tree root: its children are records (a family directory), or one family spans many directories and schemas (a directory above the tree root), so no edge can resolve |
+| `empty-tree` | violation | 1 | the root holds no .tres records, so a clean verdict would be vacuous |
 <!-- END GENERATED: section 7 refusals -->
 
 **The vocabulary is the one source.** `spec/refusals.json` carries every code; `src/rules.mjs` implements every code; the battery exercises every code; and `scripts/check-vocabulary.mjs` refuses when any of the three disagree, in either direction. A code in the codebase but not the vocabulary is drift; a code in the vocabulary but not the codebase is a promise with no check; a code neither the battery nor a host case exercises is unproven. This is what makes "define it, enforce it" mechanical rather than aspirational.
@@ -123,21 +134,47 @@ A conforming lint refuses with a one-line error naming the record, the field, an
 ## 8. The conformance CLI (the project's own artifact)
 
 ```
-tresridge lint <tree> [--decl relations.json] [--json]   # refusals; exit 1 on any
-tresridge graph <tree> [--out relations.json] [--json]   # infer a first-draft declaration
-tresridge doctor <tree> [--decl relations.json]          # the summary pass
+tresridge lint <tree> [--decl relations.json] [--json] [--rules m.mjs]  # refusals; exit 1 on any
+tresridge graph <tree> [--out relations.json] [--against f] [--json]    # infer a first-draft declaration
+tresridge doctor <tree> [--decl relations.json] [--json]                # the summary pass
+tresridge rules                                                        # the refusal vocabulary
 ```
 
-`lint` and `doctor` read a declaration (default `relations.json`); `graph` writes one. The
+`lint` and `doctor` read a declaration (default `<tree>/relations.json`, then `./relations.json`); `graph` writes one. The
 `--against <file>` drift verb diffs the inferred graph against the committed declaration and
 fails (exit `1`) on drift, so a declaration cannot fall behind the corpus silently. Drift is
-two-directional: `added` is an edge the tree has that no row names; `removed` is a row naming
-an edge the tree no longer has. Two classes of row are exempt, because they are human
+two-directional, plus one: `added` is an edge the tree has that no row names; `removed` is a row naming
+an edge the tree no longer has; `changed` is a row that exists on both sides but targets another
+family or carries another `kind`. A target is compared as a set, so widening a row to a union that
+still contains the inferred target is a legitimate refinement and not drift. Two classes of row are exempt, because they are human
 decisions rather than inference: a `literal` row (never inferred), and a row for a field in
 `graph`'s residue (inference could not resolve it, so a human declared it).
 The declaration itself is validated by the same rule set as the tree (`validateDeclaration`), so a malformed declaration refuses before a single record is read.
 
-The `graph` verb is the adoption on-ramp: it DERIVES `relations.json` from an existing tree, so a host starts from truth. Exit contract: `0` clean, `1` violations, `2` usage. The `--against` diff is the drift gate: it fails when the declared graph and the inferred graph disagree, so a declaration that has fallen behind the corpus is loud, not silent.
+The `graph` verb is the adoption on-ramp: it DERIVES `relations.json` from an existing tree, so a host starts from truth.
+
+**Exit contract: `0` clean, `1` violations, `2` usage.** The three are disjoint and a host may
+branch on them:
+
+- `0` - the run completed and found nothing to report.
+- `1` - the run completed and refused the corpus: a lint finding, or `--against` drift.
+- `2` - the run could not be performed at all. This is **not** a verdict about the corpus. It
+  covers a missing or unreadable tree, an unknown verb or flag, a **missing declaration** (a verb
+  that needs one cannot report a clean corpus without judging it), a `--rules` module that fails
+  to load or names a code the vocabulary does not carry, and the **root refusals**
+  (`not-a-tree-root`, `empty-tree`) - a run pointed at something that is not a tree root has not
+  judged a tree, it has failed to find one.
+
+A declaration that parses but does not *validate* is exit `1`, not `2`: the declaration is
+malformed content, which is a finding about what you handed the tool, not a failure to run.
+
+The root refusals carry both an exit `2` and a refusal code, because they are the one class
+that is a usage error *and* a named, documented, gated refusal. A host reading `--json` sees
+the code; a host reading only the exit status sees "you did not give me a tree".
+
+`doctor --json` emits the summary as data (`{ families, records, edgesInferred, needsDeclaring,
+declaration: { path, edges }, violations, warnings }`) for the same reason `lint --json` exists:
+a host embeds the verdict, and prose is not an interface.
 
 ## 9. Lifecycle norms, baselines, and enforcement
 

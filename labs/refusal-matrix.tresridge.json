@@ -269,6 +269,28 @@
         "declErrors": []
       },
       "status": "agree"
+    },
+    {
+      "id": "not-a-tree-root",
+      "observed": {
+        "violations": [
+          "not-a-tree-root"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "empty-tree",
+      "observed": {
+        "violations": [
+          "empty-tree"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
     }
   ]
 }
