@@ -73,6 +73,10 @@ family membership: the rig is `coreforge`, the tool is ours.
 - `main` is the trunk (production). Work happens on `staging` (the preview/integration
   branch); promotion to `main` is the only path out, via a PR merged with a merge commit.
   `staging-ff-sync.yml` keeps staging a fast-forward mirror of main after each promotion.
+- Automation is bound by the same rule, not exempt from it. `.github/dependabot.yml` sets
+  `target-branch: staging` on every ecosystem: without it Dependabot opens on the default
+  branch (`main`) and the update skips the one place it gets validated. Any future bot or
+  generator that opens PRs needs the same line, or it is bypassing the flow by default.
 
 ## Family model (referenced, not joined)
 
