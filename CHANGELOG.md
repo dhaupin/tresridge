@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-20
+
+The first registry cut. Everything below landed after 0.1.0 and before the
+package reached npm: the enforcement layer that makes the spec checkable, the
+site rig, the measured-numbers discipline, and the silent-pass class of fixes.
+0.9.0 is the last of the manual lane - a human runs `npm publish` from a clean
+`main`, and the tag-driven OIDC ladder takes over at 1.0.0.
+
 ### The silent-pass class: a wrong root is now a refusal
 
 Seven defects shared one shape: the tool completed successfully while measuring the

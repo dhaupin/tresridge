@@ -10,10 +10,19 @@ tool half is the standard itself (`bin/`, `src/`, `spec/`), unchanged by the rig
 
 ## 1. The release ladder
 
-- **0.x.y** - the manual lane. A human runs `npm publish` from a clean `main`. There is no
-  OIDC/tag automation at 0.x; the family's tag-driven ladder begins at 1.0.0, and tresridge
-  is not on that ladder.
-- **1.0.0+** - if it ever ships, it takes a tag `vX.Y.Z` and the governed release lane.
+- **0.x.y** - the manual lane. A human runs `npm publish` from a clean `main`; the OIDC lane
+  refuses to be the *first* publisher of a 0.x. Once the registry serves that version, a
+  `vX.Y.Z` tag runs `publish.yml` for the release object and the verify ladder, so a 0.x cut
+  is still proof-carrying. The lane never publishes a 0.x itself.
+- **1.0.0+** - takes a tag `vX.Y.Z` and the full governed lane: OIDC publish, release, verify.
+
+The order for a 0.x cut is therefore **publish, then tag**:
+
+```
+npm run check            # the battery (prepublishOnly runs it again)
+npm publish              # from a clean main, as a human
+git tag v0.9.0 && git push origin v0.9.0
+```
 
 Publishing is **optional and synmergia-owned**. The standard is useful as a repo and a CLI
 invoked from a checkout; npm is a convenience, not a dependency.

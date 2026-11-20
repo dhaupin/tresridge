@@ -1,4 +1,4 @@
-# tresridge 0.1.0
+# tresridge 0.9.0
 
 The `.tres` relation standard. **One edge grammar + one resolution contract, many hosts**: a tree of records becomes a declared graph, and one lint refuses an undeclared or dangling reference at author time.
 

@@ -58,6 +58,7 @@ jobs:
     outputs:
       version: ${{ steps.gate.outputs.version }}
       tag: ${{ steps.gate.outputs.tag }}
+      manual: ${{ steps.gate.outputs.manual }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with: { fetch-depth: 0 }
@@ -69,25 +70,39 @@ jobs:
         run: npm install -g npm@^11
 
       - id: gate
-        name: the gate - 0.x refused, tag == packaged version
+        name: the gate - tag == packaged version (0.x is manual-only)
         env:
           TAG_REF: ${{ github.ref_name }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -e
           V="$(node -p "require('./package.json').version")"
-          case "$V" in
-            0.*) echo "publish gate: refusing $V - the OIDC lane serves 1.0.0+ only (0.x is the manual ship lane)"; exit 1 ;;
-          esac
+          NAME=$(node -p "require('./package.json').name")
           REF="$TAG_REF"
           EVENT="$EVENT_NAME"
           if [ "$EVENT" = "push" ] && [ "$REF" != "v$V" ]; then
             echo "publish gate: refusing - tag $REF does not equal the packaged version v$V"; exit 1
           fi
+          MANUAL=false
+          case "$V" in
+            0.*)
+              # 0.x is the manual ship lane: this lane may not BE the first
+              # publisher, but once a human has published it the tag still
+              # earns its release object and its verify ladder.
+              if [ "$(npm view "$NAME@$V" version 2>/dev/null || true)" != "$V" ]; then
+                echo "publish gate: refusing $V - the OIDC lane is not the first publisher of a 0.x. Run 'npm publish' from a clean main, then re-tag v$V."
+                exit 1
+              fi
+              echo "publish gate: $V is already served (manual lane) - this tag cuts the release and verifies it"
+              MANUAL=true
+              ;;
+            *) echo "publish gate: $V is on the OIDC lane (1.0.0+)" ;;
+          esac
           TAG="v$V"
-          echo "publish gate: $TAG passes the 0.x refusal and the tag==version gate"
+          echo "publish gate: $TAG passes the tag==version gate"
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "manual=$MANUAL" >> "$GITHUB_OUTPUT"
 
       - name: Install (hermetic when a lockfile ships)
         run: |
@@ -95,6 +110,7 @@ jobs:
           else npm install --no-fund --no-audit; fi
 
       - name: npm publish (OIDC - no token secret; skip if the registry already has this version)
+        if: steps.gate.outputs.manual != 'true'
         run: |
           LOCAL=$(node -p "require('./package.json').version")
           NAME=$(node -p "require('./package.json').name")
