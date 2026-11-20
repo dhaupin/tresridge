@@ -1,0 +1,274 @@
+{
+  "schema": 1,
+  "what": "The tresridge column of the shared refusal matrix. Every verdict is OBSERVED from the actual lint run over materialized bytes, never hand-derived. Regenerate with `npm run matrix:gen`.",
+  "generator": "scripts/gen-refusal-matrix.mjs",
+  "rows": [
+    {
+      "id": "clean",
+      "observed": {
+        "violations": [],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "undeclared-edge",
+      "observed": {
+        "violations": [
+          "undeclared-edge"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "dangling-ref",
+      "observed": {
+        "violations": [
+          "dangling-ref"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "literal-ok",
+      "observed": {
+        "violations": [],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "literal-keeps-teeth",
+      "observed": {
+        "violations": [],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "schema-mismatch",
+      "observed": {
+        "violations": [
+          "schema-mismatch"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "undeclared-family",
+      "observed": {
+        "violations": [
+          "undeclared-family"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "cycle",
+      "observed": {
+        "violations": [
+          "cycle"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "required-false-warns",
+      "observed": {
+        "violations": [],
+        "warnings": [
+          "dangling-ref"
+        ],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "duplicate-edge",
+      "observed": {
+        "violations": [
+          "duplicate-edge"
+        ],
+        "warnings": [],
+        "declErrors": [
+          "duplicate-edge"
+        ]
+      },
+      "status": "agree"
+    },
+    {
+      "id": "nested-ref-ok",
+      "observed": {
+        "violations": [],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "nested-ref-dangling",
+      "observed": {
+        "violations": [
+          "dangling-ref"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "nested-ref-undeclared",
+      "observed": {
+        "violations": [
+          "undeclared-edge"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "virtual-ref-ok",
+      "observed": {
+        "violations": [],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "virtual-ref-dangling-stem",
+      "observed": {
+        "violations": [
+          "dangling-ref"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "virtual-no-pattern",
+      "observed": {
+        "violations": [
+          "unknown-rule"
+        ],
+        "warnings": [],
+        "declErrors": [
+          "unknown-rule"
+        ]
+      },
+      "status": "agree"
+    },
+    {
+      "id": "nested-spec-array-form",
+      "observed": {
+        "violations": [
+          "dangling-ref"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "baseline-unknown-key",
+      "observed": {
+        "violations": [
+          "unknown-rule"
+        ],
+        "warnings": [],
+        "declErrors": [
+          "unknown-rule"
+        ]
+      },
+      "status": "agree"
+    },
+    {
+      "id": "baseline-glob-scoped",
+      "observed": {
+        "violations": [
+          "dangling-ref"
+        ],
+        "warnings": [
+          "baseline-unmatched"
+        ],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "name-dir-mismatch",
+      "observed": {
+        "violations": [
+          "name-dir-mismatch"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "filename-id-mismatch",
+      "observed": {
+        "violations": [
+          "filename-id-mismatch"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "unknown-rule",
+      "observed": {
+        "violations": [
+          "unknown-rule"
+        ],
+        "warnings": [
+          "baseline-unmatched"
+        ],
+        "declErrors": [
+          "unknown-rule"
+        ]
+      },
+      "status": "agree"
+    },
+    {
+      "id": "baseline-expired",
+      "observed": {
+        "violations": [
+          "baseline-expired",
+          "dangling-ref"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "baseline-unmatched",
+      "observed": {
+        "violations": [],
+        "warnings": [
+          "baseline-unmatched"
+        ],
+        "declErrors": []
+      },
+      "status": "agree"
+    }
+  ]
+}

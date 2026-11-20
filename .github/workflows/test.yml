@@ -1,0 +1,71 @@
+name: test
+
+# Two batteries, one lane. The TOOL battery is the standard proving itself: the
+# refusal battery, the drift gate, and the vocabulary census over bin/ + src/ +
+# spec/. The SITE battery is the coreforge rig over the landing (web/) and docs
+# (docs/). Both run on every push and PR, so a change to either half is gated.
+#
+# Actions are SHA-pinned with the human tag in a trailing comment (pins never
+# float). A bump moves the pin in the same commit that justifies it.
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tool:
+    name: tool battery
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ matrix.node }}
+      # The standard's own gates: the refusal battery, the refusal-matrix
+      # freshness check, and the vocabulary census. No site dependency, so it
+      # runs on the tool alone.
+      - run: npm run check:tool
+
+  site:
+    name: site battery
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22'
+      - name: Install
+        run: npm install --no-audit --no-fund
+      # The gates over the site half: brand census, docs frontmatter/links/style/
+      # fiction/liquid, theme parity, language, birth-gate.
+      - name: Gates (coreforge check)
+        run: npm run site:check
+      # The derived surfaces must match site.config.js. `--check` refuses drift
+      # (run `npm run site:sync` locally).
+      - name: Derived surfaces are current (coreforge sync --check)
+        run: npm run site:sync:check
+      - name: Install web deps
+        run: npm install --prefix web --no-audit --no-fund
+      - name: Web build (prestruct prerender)
+        run: npm run site:build
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+          working-directory: './docs'
+      - name: Docs build (Jekyll)
+        run: cd docs && bundle exec jekyll build
+        env:
+          JEKYLL_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

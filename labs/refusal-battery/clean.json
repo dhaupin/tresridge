@@ -1,0 +1,10 @@
+{
+  "id": "clean",
+  "base": true,
+  "add": {},
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "violations": []
+  }
+}

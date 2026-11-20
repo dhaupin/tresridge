@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="14" fill="#10131a"/>
+  <!-- Placeholder mark. Replace with your own art (see DEPLOY.md):
+       install sharp, potrace, and resvg locally, then run
+       node scripts/adopt-icons.mjs with your source image, and
+       node scripts/og-image.mjs to redraw the OG card. -->
+  <rect x="20" y="13" width="24" height="38" rx="3" fill="none" stroke="#e7eaf1" stroke-width="3"/>
+  <path d="M26 24h12M26 31h12M26 38h7" stroke="#6d8cff" stroke-width="3" stroke-linecap="round"/>
+</svg>

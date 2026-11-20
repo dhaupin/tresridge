@@ -1,0 +1,19 @@
+{
+  "id": "literal-ok",
+  "base": false,
+  "add": {
+    "npcs/npc_smith.tres": "script_class=\"NpcData\"\nid = \"npc_smith\"\nhome_zone_id = \"zn_haven\"\nexternal_id = \"X-99\"\n"
+  },
+  "extraEdges": [
+    {
+      "family": "npcs",
+      "field": "external_id",
+      "target": "zones",
+      "kind": "literal"
+    }
+  ],
+  "overrideEdges": [],
+  "expect": {
+    "violations": []
+  }
+}

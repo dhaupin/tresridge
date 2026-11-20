@@ -1,0 +1,27 @@
+{
+  "id": "required-false-warns",
+  "base": false,
+  "add": {
+    "npcs/npc_smith.tres": "script_class=\"NpcData\"\nid = \"npc_smith\"\nhome_zone_id = \"zn_missing\"\n"
+  },
+  "extraEdges": [],
+  "overrideEdges": [
+    {
+      "family": "npcs",
+      "field": "home_zone_id",
+      "target": "zones",
+      "kind": "ref",
+      "required": false
+    },
+    {
+      "family": "loot_tables",
+      "field": "entries.item_id",
+      "target": "zones",
+      "kind": "nested"
+    }
+  ],
+  "expect": {
+    "violations": [],
+    "codes": []
+  }
+}

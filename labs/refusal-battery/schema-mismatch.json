@@ -1,0 +1,14 @@
+{
+  "id": "schema-mismatch",
+  "base": false,
+  "add": {
+    "npcs/npc_smith.tres": "script_class=\"WrongData\"\nid = \"npc_smith\"\nhome_zone_id = \"zn_haven\"\n"
+  },
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "schema-mismatch"
+    ]
+  }
+}
