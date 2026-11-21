@@ -122,6 +122,38 @@ npx tresridge lint data/ --decl relations.json
 `--json` returns the whole verdict as data: `{ families, records, edges,
 violations, warnings }`.
 
+Output is capped at 20 findings per refusal code, with a line counting the rest;
+`--all` prints every one and `--json` is always unbounded. The cap is per code,
+so a rare refusal is never scrolled off by a common one.
+
+## Scale
+
+The tree is read once and held in memory, so cost is linear in records: about
+2.4KB of live heap and roughly 40 microseconds of wall time per record, measured
+against a generated corpus on four cores.
+
+| records | wall | peak RSS |
+|---------|------|----------|
+| 1,097 (real corpus) | 43ms | - |
+| 10,000 | 229ms | - |
+| 100,000 | 3.7s | 270MB |
+| 400,000 | 15.1s | 1.27GB |
+| 1,000,000 | 44.7s | 2.77GB |
+
+Node's default old-space is about 4.3GB, so the walk dies somewhere past 1.5
+million records. That death is a SIGABRT (exit 134) after minutes of mark-compact
+thrashing, which is outside the 0/1/2 exit contract, so `readTree` refuses by name
+instead: exit `2`, naming the file count and the ceiling. Raise it with
+`--max-old-space-size` or `TRES_MAX_RECORDS` if you have the headroom; lint large
+trees in parts if you do not.
+
+Parallelism does not help here, and this was measured rather than assumed. Async
+I/O runs 3-4x slower than sync because the promise overhead per ~700B file
+exceeds the read. Worker threads lose at two threads (0.84x) and worse beyond,
+because the structured-clone payload costs more than the parse it saves. Read and
+parse are each about 40% of the walk, and neither parallelizes cheaply at this
+file size.
+
 ## The summary pass: `doctor`
 
 `doctor` runs `lint` and prints the graph residue beside it, so one command

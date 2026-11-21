@@ -182,8 +182,26 @@ export function parseTres(file) {
  * path-relative key so id-less records (e.g. `roots/<name>/environment.tres`)
  * do not collapse onto one another.
  */
+// ~2.4KB of live heap per record is measured, not guessed: 400k records peak at 1.27GB
+// RSS, 1M at 2.77GB, against Node's ~4.3GB default old-space. Past roughly 1.5M the
+// walk dies, and V8's death is SIGABRT (exit 134) after minutes of mark-compact
+// thrashing - an exit code this tool's 0/1/2 contract cannot express. The guard turns
+// that silent death into a named refusal.
+const DEFAULT_RECORD_CEILING = 1500000;
+
 export function readTree(root) {
   const files = walkTres(root);
+  // Measured: a record costs ~2.4KB of live heap (fields Map + nested map + the record
+  // object). Node's default old-space is ~4.3GB, so the walk dies somewhere past 1.2M
+  // records - and V8's death is a SIGABRT (exit 134) after minutes of mark-compact
+  // thrashing, which is not an exit code this tool's contract (0/1/2) can express.
+  // Refusing up front turns a silent death into a named one. This is a guard against a
+  // bad root, not a budget: 1M records is measured to fit and run.
+  const ceiling = Number(process.env.TRES_MAX_RECORDS) || DEFAULT_RECORD_CEILING;
+  if (files.length > ceiling) {
+    throw new Error(`${files.length} .tres files under ${root} exceeds the ${ceiling}-record in-memory ceiling `
+      + `(~2.4KB live heap per record against Node's default heap); raise --max-old-space-size, TRES_MAX_RECORDS, or lint in parts`);
+  }
   const records = [];
   const idsByFamily = new Map();
   const schemaByFamily = new Map();

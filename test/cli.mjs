@@ -354,6 +354,89 @@ try {
     try { parsed = JSON.parse(r.out); } catch { /* reported below */ }
     const row = parsed?.residue?.undeclared?.find((u) => u.field === 'mystery_id');
     check('residue counts every record carrying the field', row && row.count === 3, JSON.stringify(parsed?.residue?.undeclared));
+
+    // -- output is capped per code, and the cap cannot hide a KIND of problem ------
+    // A 10k-record tree printed 5,883 identical `dangling-ref` lines and scrolled the
+    // one refusal that mattered off the screen. The cap is per code, so a rare refusal
+    // always prints in full even when a common one is truncated.
+    //
+    // The rare code here is `cycle`, chosen because it runs AFTER `dangling-ref` in the
+    // rule order. A naive global cap would print the first 20 rows - all dangling - and
+    // drop the cycle entirely, which is exactly the silent pass this guards.
+    {
+      const decl = JSON.stringify({
+        schemaVersion: 1,
+        families: [
+          { key: 'npcs', schema: 'NpcData', idPrefix: '' },
+          { key: 'zones', schema: 'ZoneData', idPrefix: '' },
+        ],
+        edges: [
+          { family: 'npcs', field: 'home_zone_id', target: 'zones', kind: 'ref', required: true },
+          // required: true because the cycle rule only follows required refs - an
+          // optional link is a graph hint, not a structural commitment.
+          { family: 'npcs', field: 'rival_id', target: 'npcs', kind: 'ref', required: true },
+        ],
+      }, null, 2) + '\n';
+      const files = { 'relations.json': decl, 'zones/zn_haven.tres': 'script_class="ZoneData"\nid = "zn_haven"\n' };
+      for (let i = 0; i < 30; i++) files[`npcs/npc_${i}.tres`] = `script_class="NpcData"\nid = "npc_${i}"\nhome_zone_id = "zn_gone"\n`;
+      files['npcs/npc_cyc_a.tres'] = 'script_class="NpcData"\nid = "npc_cyc_a"\nhome_zone_id = "zn_haven"\nrival_id = "npc_cyc_b"\n';
+      files['npcs/npc_cyc_b.tres'] = 'script_class="NpcData"\nid = "npc_cyc_b"\nhome_zone_id = "zn_haven"\nrival_id = "npc_cyc_a"\n';
+      const d = make(files);
+
+      const capped = cli(['lint', d]);
+      expectCode('a capped run still exits 1', capped, 1);
+      check('the cap prints the 20 it allows', (capped.out.match(/FAIL  dangling-ref/g) || []).length === 20,
+        `saw ${(capped.out.match(/FAIL  dangling-ref/g) || []).length}`);
+      check('the cap states how many it withheld', /10 more dangling-ref/.test(capped.out),
+        capped.out.split('\n').find((l) => /more dangling-ref/.test(l)) || 'no line');
+      check('the true count is still reported', /31 violation\(s\)/.test(capped.out), capped.out.trim().split('\n').pop());
+      check('a rare code emitted AFTER the common one is not truncated away', /FAIL  cycle/.test(capped.out),
+        'cycle missing - the cap hid a distinct kind of problem');
+
+      const all = cli(['lint', d, '--all']);
+      expectCode('--all exits 1 too', all, 1);
+      check('--all prints every dangling ref', (all.out.match(/FAIL  dangling-ref/g) || []).length === 30,
+        `saw ${(all.out.match(/FAIL  dangling-ref/g) || []).length}`);
+      check('--all prints no truncation notice', !/more dangling-ref/.test(all.out), 'still truncated');
+
+      const js = cli(['lint', d, '--json']);
+      let parsed = null;
+      try { parsed = JSON.parse(js.out); } catch { /* reported below */ }
+      check('--json is unbounded regardless of the cap', parsed?.violations?.length === 31, `got ${parsed?.violations?.length}`);
+    }
+
+
+    // -- doctor names what is wrong, not just how much ----------------------------
+    {
+      const files = { 'relations.json': DECL, 'zones/zn_haven.tres': 'script_class="ZoneData"\nid = "zn_haven"\n' };
+      for (let i = 0; i < 5; i++) files[`npcs/npc_${i}.tres`] = `script_class="NpcData"\nid = "npc_${i}"\nhome_zone_id = "zn_gone"\n`;
+      const d = make(files);
+      const r = cli(['doctor', d]);
+      expectCode('doctor exits 1 on violations', r, 1);
+      check('doctor breaks violations down by code', /by code:/.test(r.out), r.out.trim());
+      check('doctor names the code and its worst family', /dangling-ref\s+- npcs \(5\)/.test(r.out),
+        r.out.split('\n').find((l) => /dangling-ref/.test(l)) || 'no row');
+    }
+
+    // -- an unreadably large tree is refused by name, not killed by the OOM killer ----
+    // 1M records is measured to run (2.77GB peak RSS against a 4.3GB default heap), but
+    // past ~1.5M V8 aborts with SIGABRT (exit 134) after minutes of mark-compact
+    // thrashing - outside the 0/1/2 contract. The ceiling is env-overridable so this
+    // test can drive it with 3 files instead of 1.5 million.
+    {
+      const d = make(CLEAN);
+      const prev = process.env.TRES_MAX_RECORDS;
+      process.env.TRES_MAX_RECORDS = '1';
+      const r = cli(['lint', d]);
+      if (prev === undefined) delete process.env.TRES_MAX_RECORDS;
+      else process.env.TRES_MAX_RECORDS = prev;
+      expectCode('an over-ceiling tree is a usage refusal (exit 2)', r, 2);
+      check('the refusal names the ceiling and the file count',
+        /exceeds the 1-record in-memory ceiling/.test(r.err) && /2 \.tres files/.test(r.err), r.err.trim());
+      check('the refusal is not a crash (no V8 stack)', !/mark-compact|Last few GCs|SIGABRT/.test(r.err), r.err.trim().slice(0, 120));
+    }
+
+
   }
 } finally {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
