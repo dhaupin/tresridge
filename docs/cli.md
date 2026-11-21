@@ -128,31 +128,36 @@ so a rare refusal is never scrolled off by a common one.
 
 ## Scale
 
-The tree is read once and held in memory, so cost is linear in records: about
-2.4KB of live heap and roughly 40 microseconds of wall time per record, measured
-against a generated corpus on four cores.
+The tree is read once and held in memory, so cost is linear in records and in source
+bytes. Measured on generated corpora, on four cores:
 
-| records | wall | peak RSS |
-|---------|------|----------|
-| 1,097 (real corpus) | 43ms | - |
-| 10,000 | 229ms | - |
-| 100,000 | 3.7s | 270MB |
-| 400,000 | 15.1s | 1.27GB |
-| 1,000,000 | 44.7s | 2.77GB |
+| corpus | records | source | wall | peak heap |
+|--------|---------|--------|------|-----------|
+| real tree (synmergia) | 1,097 | 1.0MB | 43ms | - |
+| typical records | 100,000 | 78MB | 3.7s | 270MB |
+| typical records | 743,403 | 553MB | 35s | 2.49GB |
+| smallest records (46B) | 200,000 | 9MB | 57s | 223MB |
+| large records (7.6KB) | 200,000 | 1.4GB | 108s | 4.92GB |
 
-Node's default old-space is about 4.3GB, so the walk dies somewhere past 1.5
-million records. That death is a SIGABRT (exit 134) after minutes of mark-compact
-thrashing, which is outside the 0/1/2 exit contract, so `readTree` refuses by name
-instead: exit `2`, naming the file count and the ceiling. Raise it with
-`--max-old-space-size` or `TRES_MAX_RECORDS` if you have the headroom; lint large
-trees in parts if you do not.
+Cost is roughly `900 bytes x records + 3.3 x source bytes` of live heap. Both terms
+matter: 46-byte records cost 24x their own size, because per-record overhead dominates
+at that end, while field data dominates for large records. The reader estimates that
+sum before parsing and refuses up front if it exceeds 95% of the heap, rather than
+letting V8 abort. The difference is not cosmetic - a 1.35M-record tree that took 321s
+to reach SIGABRT (exit 134, outside the 0/1/2 contract) is now refused in 14s with exit
+`2` and the numbers that produced the refusal. Raise `--max-old-space-size` if you have
+the headroom, or lint the tree in parts.
 
-Parallelism does not help here, and this was measured rather than assumed. Async
-I/O runs 3-4x slower than sync because the promise overhead per ~700B file
-exceeds the read. Worker threads lose at two threads (0.84x) and worse beyond,
-because the structured-clone payload costs more than the parse it saves. Read and
-parse are each about 40% of the walk, and neither parallelizes cheaply at this
-file size.
+That 95% is deliberate. Shrinking the heap under a fixed 743k-record tree, it completes
+at 88%, 92% and 95% of the limit (33-41s) and only aborts at 96-99% - so a guard set
+well below the cliff would refuse trees that run fine. `TRES_MAX_RECORDS` still caps the
+record count outright, for callers who want a fixed bound regardless of heap.
+
+Parallelism does not help here, and this was measured rather than assumed. Async I/O
+runs 3-4x slower than sync because the promise overhead per ~700B file exceeds the
+read. Worker threads lose at two threads (0.84x) and worse beyond, because the
+structured-clone payload costs more than the parse it saves. Read and parse are each
+about 40% of the walk, and neither parallelizes cheaply at this file size.
 
 ## The summary pass: `doctor`
 

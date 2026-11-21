@@ -14,6 +14,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { estimateHeap } from '../src/tres.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = join(ROOT, 'bin', 'cli.mjs');
@@ -22,10 +23,10 @@ const fails = [];
 let checks = 0;
 
 /** Run the CLI. Returns { code, out, err } and never throws on a non-zero exit. */
-function cli(args, cwd = ROOT) {
+function cli(args, cwd = ROOT, env = process.env) {
   try {
     const out = execFileSync(process.execPath, [CLI, ...args], {
-      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env,
     });
     return { code: 0, out, err: '' };
   } catch (e) {
@@ -432,10 +433,28 @@ try {
       else process.env.TRES_MAX_RECORDS = prev;
       expectCode('an over-ceiling tree is a usage refusal (exit 2)', r, 2);
       check('the refusal names the ceiling and the file count',
-        /exceeds the 1-record in-memory ceiling/.test(r.err) && /2 \.tres files/.test(r.err), r.err.trim());
+        /exceeds the 1-record ceiling/.test(r.err) && /2 \.tres files/.test(r.err), r.err.trim());
       check('the refusal is not a crash (no V8 stack)', !/mark-compact|Last few GCs|SIGABRT/.test(r.err), r.err.trim().slice(0, 120));
     }
 
+    // -- the heap estimator matches what the reader actually costs --------------------
+    // Node clamps --max-old-space-size to a 200MB floor, so the guard cannot be driven by
+    // shrinking the heap in a test. Assert the model instead, against the corpora it was
+    // fitted to: if the coefficients drift, the guard starts refusing trees that fit (or
+    // admitting trees that abort), and this fails before either happens for real.
+    {
+      const measured = [
+        { name: '200k smallest records (46B)', records: 200000, source: 9.4e6, heap: 223e6 },
+        { name: '200k large records (7.6KB)', records: 200000, source: 1444e6, heap: 4915e6 },
+        { name: '743k typical records', records: 743403, source: 553e6, heap: 2485e6 },
+      ];
+      for (const m of measured) {
+        const est = estimateHeap(m.records, m.source);
+        const err = Math.abs(est - m.heap) / m.heap;
+        check(`the heap estimate is within 10% for ${m.name}`, err < 0.10,
+          `estimated ${Math.round(est / 1e6)}MB, measured ${Math.round(m.heap / 1e6)}MB (${(err * 100).toFixed(1)}% off)`);
+      }
+    }
 
   }
 } finally {

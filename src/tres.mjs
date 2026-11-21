@@ -1,7 +1,8 @@
 // The .tres tree reader: walk a record tree into families and records.
 // Host-neutral: it knows nothing about any particular game's vocabulary.
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { getHeapStatistics } from 'node:v8';
 import { join, basename, relative, dirname } from 'node:path';
 
 /** Walk `root` and return every `.tres` file path, recursively. */
@@ -182,25 +183,47 @@ export function parseTres(file) {
  * path-relative key so id-less records (e.g. `roots/<name>/environment.tres`)
  * do not collapse onto one another.
  */
-// ~2.4KB of live heap per record is measured, not guessed: 400k records peak at 1.27GB
-// RSS, 1M at 2.77GB, against Node's ~4.3GB default old-space. Past roughly 1.5M the
-// walk dies, and V8's death is SIGABRT (exit 134) after minutes of mark-compact
-// thrashing - an exit code this tool's 0/1/2 contract cannot express. The guard turns
-// that silent death into a named refusal.
-const DEFAULT_RECORD_CEILING = 1500000;
+// Heap cost per record, and per source byte, fitted by least squares to three measured
+// corpora: 200k of the smallest plausible records (46B each), 200k of large ones (7.6KB
+// each), and 743k typical synmergia-shaped ones. Fit error was -4.6%, -0.0% and +0.1%.
+// Two terms are needed because per-record overhead dominates for small records (46B
+// records cost 24x their bytes) while field data dominates for large ones.
+//
+// Predicting up front is what makes the refusal cheap: by the time a tree is deep into
+// mark-compact thrashing, a sampling guard takes minutes to notice.
+const HEAP_PER_RECORD = 900;
+const HEAP_PER_SOURCE_BYTE = 3.3;
+
+/**
+ * Estimated live heap a tree will occupy once read, in bytes. Exported so the fit can be
+ * checked against measured corpora rather than trusted.
+ */
+export function estimateHeap(recordCount, sourceBytes) {
+  return recordCount * HEAP_PER_RECORD + sourceBytes * HEAP_PER_SOURCE_BYTE;
+}
 
 export function readTree(root) {
   const files = walkTres(root);
-  // Measured: a record costs ~2.4KB of live heap (fields Map + nested map + the record
-  // object). Node's default old-space is ~4.3GB, so the walk dies somewhere past 1.2M
-  // records - and V8's death is a SIGABRT (exit 134) after minutes of mark-compact
-  // thrashing, which is not an exit code this tool's contract (0/1/2) can express.
-  // Refusing up front turns a silent death into a named one. This is a guard against a
-  // bad root, not a budget: 1M records is measured to fit and run.
-  const ceiling = Number(process.env.TRES_MAX_RECORDS) || DEFAULT_RECORD_CEILING;
-  if (files.length > ceiling) {
-    throw new Error(`${files.length} .tres files under ${root} exceeds the ${ceiling}-record in-memory ceiling `
-      + `(~2.4KB live heap per record against Node's default heap); raise --max-old-space-size, TRES_MAX_RECORDS, or lint in parts`);
+  // Refuse before reading, not during: a tree that will not fit is cheapest to reject
+  // while nothing has been parsed. The estimate needs the source size, so it costs one
+  // stat per file - 2.7s over 743k files, against the ~35s the read itself takes.
+  const heapLimit = getHeapStatistics().heap_size_limit;
+  // 0.95 rather than 1.0: the model is a fit, not a bound, and the difference between
+  // "refused" and "SIGABRT after six minutes" should not rest on a 1% prediction error.
+  const budget = heapLimit * 0.95;
+
+  const ceiling = Number(process.env.TRES_MAX_RECORDS) || 0;
+  if (ceiling && files.length > ceiling) {
+    throw new Error(`${files.length} .tres files under ${root} exceeds the ${ceiling}-record ceiling (TRES_MAX_RECORDS)`);
+  }
+
+  let sourceBytes = 0;
+  for (const file of files) sourceBytes += statSync(file).size;
+  const predicted = estimateHeap(files.length, sourceBytes);
+  if (predicted > budget) {
+    throw new Error(`${files.length} .tres files under ${root} hold ${Math.round(sourceBytes / 1048576)}MB of source, `
+      + `which this tool reads into about ${Math.round(predicted / 1048576)}MB of heap; the limit here is ${Math.round(heapLimit / 1048576)}MB. `
+      + `Raise --max-old-space-size, or lint the tree in parts`);
   }
   const records = [];
   const idsByFamily = new Map();
