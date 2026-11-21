@@ -79,7 +79,7 @@ git status        # clean tree
 
 ## 3. The two halves
 
-- **The tool** (`bin/`, `src/`, `spec/`, `profiles/`) - the standard. `npm run check:tool` is
+- **The tool** (`bin/`, `src/`, `spec/`, `packs/`) - the standard. `npm run check:tool` is
   the battery, the drift gate, and the vocabulary census.
 - **The site** (`web/`, `docs/`, `site.config.js`) - the coreforge rig. `npm run site:check`
   runs the gates; `npm run site:sync` fans the identity out; `npm run site:doctor` is the
@@ -88,14 +88,11 @@ git status        # clean tree
 
 ## 4. What is NOT part of this repo
 
-- **No family registration.** tresridge is not a member of the struct family roster: it is
-  not in govstruct's `registry.v1.json`, has no `members/tresridge.json`, and serves no
-  family-domain site. It keeps the family *model* (this layout, the spec/labs/conformance
-  split, the refusal battery) without joining the roster.
 - **No `adapter/`.** There is no adapter directory in the family and none here.
-- **No `packs/`.** tresridge's extension surface is `--rules <module>` plus `profiles/`, not
-  the family's `packs/` slot. The rig ships a `packs/` slot for site adopters; tresridge does
-  not use it, so it is not present.
+
+The family roster entry lives in **govstruct** (`members/tresridge.json`), not in this repo -
+a member declares its roles where the roster is read, so the roster cannot disagree with
+itself across repos. `railyard` mounts the member for orchestration.
 
 ## 5. CI
 

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "what": "Pack campaign verdicts. A row that moves against this file fails the run; re-baseline with --adopt.",
+  "rows": {
+    "godot-shapes:godot/id-required-when-prefixed": {
+      "verdict": "BOUNDED",
+      "detail": "no target tree armed - pass --tree <dir> or set TRESRIDGE_TREE"
+    }
+  }
+}

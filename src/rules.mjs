@@ -541,27 +541,36 @@ export function runRules(tree, decl, opts = {}) {
   const unknown = [];
   for (const r of extra) {
     if (!ctx.vocabulary.includes(r.code)) {
-      unknown.push({ code: 'unknown-rule', record: r.code, detail: `host rule names a code the vocabulary does not carry: ${JSON.stringify(r.code)}` });
+      const f = { code: 'unknown-rule', record: r.code, detail: `host rule names a code the vocabulary does not carry: ${JSON.stringify(r.code)}` };
+      if (r.pack) f.pack = r.pack;
+      unknown.push(f);
     }
   }
 
   const all = [...unknown];
+  // A finding is attributed to the pack whose rule produced it (SPEC section 5:
+  // a conforming loader names the offending pack), so a consumer reading
+  // violations[] can tell a core refusal from a pack's without a second lookup.
+  const collect = (rule) => {
+    const found = rule.run(ctx) || [];
+    return rule.pack ? found.map((f) => (f.pack ? f : { ...f, pack: rule.pack })) : found;
+  };
   for (const rule of [...RULES, ...extra]) {
     const scope = rule.scope || 'tree';
     if (scope === 'declaration') continue; // run below, after shape checks pass
-    all.push(...(rule.run(ctx) || []));
+    all.push(...collect(rule));
   }
   const declFindings = [];
   for (const rule of RULES) {
     if (rule.scope !== 'declaration') continue;
-    declFindings.push(...(rule.run(ctx) || []));
+    declFindings.push(...collect(rule));
   }
   // Host rules run at declaration scope too. Skipping them here was a silent skip:
   // `--rules` promises that host rules ADD findings, and a rule whose whole check is
   // about the declaration would never have run.
   for (const rule of extra) {
     if ((rule.scope || 'tree') !== 'declaration') continue;
-    declFindings.push(...(rule.run(ctx) || []));
+    declFindings.push(...collect(rule));
   }
 
   const { kept, notes } = applyBaselines([...declFindings, ...all], decl.baselines, opts.now);

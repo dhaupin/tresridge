@@ -58,7 +58,7 @@
       "code": "unknown-rule",
       "severity": "violation",
       "section": "7",
-      "detail": "a profile or baseline names a refusal code the vocabulary does not carry"
+      "detail": "a host module, pack, or baseline names a refusal code the vocabulary does not carry"
     },
     {
       "code": "baseline-expired",
