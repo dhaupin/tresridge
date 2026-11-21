@@ -71,6 +71,40 @@ function nestedKeys(raw) {
 }
 
 /**
+ * Why a `.tres` file cannot be read as a record, or `null` if it can.
+ *
+ * A `.tres` file is authored by a human and merged by a human, so the two ways it
+ * arrives unreadable are both worth naming: an unresolved merge conflict (the file
+ * holds BOTH sides of a field, so reading either one is a guess) and a body that is
+ * not a resource at all (a binary blob, a truncated write, a stray file ending
+ * `.tres`).
+ *
+ * This exists because the parser's `[resource]` fallback - which synthetic fixtures
+ * need, since they carry no header - otherwise reads garbage as a record with no
+ * fields. That is a silent success over unreadable bytes, and it let a
+ * conflict-marked file resolve to whichever side the parser walked last.
+ */
+export function unparseableReason(file) {
+  return unparseableText(readFileSync(file, 'utf8'));
+}
+
+/** `unparseableReason` over already-read text, so a parse reads the file once. */
+export function unparseableText(txt) {
+  // git writes all three markers; any one of them means the file is mid-merge and
+  // its content is not one coherent record.
+  if (/^(?:<{7}|={7}|>{7})/m.test(txt)) return 'unresolved merge conflict markers';
+  // Control characters never appear in a text resource (tab, CR, and LF excepted).
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(txt)) return 'binary content';
+  // No `[resource]` header AND no field line: nothing to read. A synthetic fixture
+  // with no header still carries `key = value` lines, so this refuses only a body
+  // that is not a record at all.
+  if (!txt.includes('[resource]') && !/^[a-zA-Z_][a-zA-Z0-9_]*\s*=/m.test(txt)) {
+    return 'no [resource] section and no field lines';
+  }
+  return null;
+}
+
+/**
  * Parse one `.tres` file into { id, idDeclared, scriptClass, fields, nested }.
  *
  * Godot writes a resource's own properties as UNQUOTED `key = value` lines at
@@ -90,6 +124,13 @@ export function parseTres(file) {
   // two would make an id-less record unrefusable.
   const idDeclared = declared !== undefined;
   const id = idDeclared ? declared : basename(file, '.tres');
+  const unparseable = unparseableText(txt);
+
+  // Unreadable bytes carry NO fields. Reading a conflict-marked file anyway picked
+  // one side of the merge and resolved it - a clean verdict over a file nobody
+  // resolved. The refusal is reported by the `unparseable-record` rule; the parser's
+  // job here is only to stop inventing content.
+  if (unparseable) return { id, idDeclared, scriptClass, fields: new Map(), nested: new Map(), unparseable };
 
   // A real Godot resource puts its properties under a `[resource]` header. A
   // synthetic fixture (the conformance cases) may carry none, so fall back to the
@@ -152,11 +193,22 @@ export function readTree(root) {
   for (const file of files) {
     const rel = relative(root, file).split('\\').join('/');
     const family = rel.split('/')[0];
-    const { id, idDeclared, scriptClass, fields, nested } = parseTres(file);
-    const key = `${family}:${id}`;
-    records.push({ file: rel, family, id, idDeclared, key, scriptClass, fields, nested });
-    if (!idsByFamily.has(family)) idsByFamily.set(family, new Set());
-    idsByFamily.get(family).add(id);
+    const { id, idDeclared, scriptClass, fields, nested, unparseable } = parseTres(file);
+    // The key is how a record is looked up in `byFamily`. A DECLARED id is unique or
+    // the tree is refused (`duplicate-record-id`), so the id alone keys it. An id-less
+    // record's stem is NOT unique - `roots/a/environment.tres` and
+    // `roots/b/environment.tres` share one - so those key by path, which is the
+    // "fixed by path-keying" the spec claims (section 2) and what keeps two of them
+    // two records instead of one shadowing the other.
+    const key = idDeclared ? id : rel;
+    records.push({ file: rel, family, id, idDeclared, key, scriptClass, fields, nested, unparseable });
+    // An unparseable record contributes no id: it is not a resolvable target, and
+    // letting its stem into the pool would let a dangling ref resolve against a file
+    // nobody can read.
+    if (!unparseable) {
+      if (!idsByFamily.has(family)) idsByFamily.set(family, new Set());
+      idsByFamily.get(family).add(id);
+    }
     if (scriptClass && !schemaByFamily.has(family)) schemaByFamily.set(family, scriptClass);
     if (scriptClass) {
       if (!schemasByFamily.has(family)) schemasByFamily.set(family, new Set());
@@ -166,10 +218,14 @@ export function readTree(root) {
     dirsByFamily.get(family).add(rel.split('/').slice(0, -1).join('/'));
   }
 
-  const families = [...idsByFamily.keys()].sort().map((key) => ({
+  // Families come from the DIRECTORIES that hold records, not from the id pool: an
+  // unparseable record contributes no id, and a family whose only record is
+  // unparseable must still be a family - otherwise it vanishes from the tree and
+  // reports as `name-dir-mismatch`, blaming the declaration for a bad file.
+  const families = [...dirsByFamily.keys()].sort().map((key) => ({
     key,
     schema: schemaByFamily.get(key) || '',
-    count: idsByFamily.get(key).size,
+    count: idsByFamily.get(key)?.size || 0,
     schemas: [...(schemasByFamily.get(key) || [])].sort(),
     dirs: [...(dirsByFamily.get(key) || [])].sort(),
   }));

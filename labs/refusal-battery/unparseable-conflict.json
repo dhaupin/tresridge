@@ -1,0 +1,14 @@
+{
+  "id": "unparseable-conflict",
+  "base": false,
+  "add": {
+    "npcs/npc_warrior.tres": "<<<<<<< HEAD\nscript_class=\"NpcData\"\nid = \"npc_warrior\"\nhome_zone_id = \"zn_haven\"\n=======\nscript_class=\"NpcData\"\nid = \"npc_warrior\"\nhome_zone_id = \"zn_other\"\n>>>>>>> branch\n"
+  },
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "unparseable-record"
+    ]
+  }
+}

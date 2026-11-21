@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "families": [
+    {
+      "key": "zones",
+      "schema": "ZoneData",
+      "idPrefix": ""
+    },
+    {
+      "key": "roots",
+      "schema": "RootData",
+      "idPrefix": ""
+    }
+  ],
+  "edges": [],
+  "virtualFamilies": {
+    "npc": "npcs"
+  }
+}

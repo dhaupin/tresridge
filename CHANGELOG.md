@@ -6,6 +6,45 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### The silent-pass class: unreadable bytes and duplicate identities
+
+Two refusals close the last ways a broken tree could lint clean. Both were found
+by adversarial vetting of the shipped 0.9.0, and both now have a battery row that
+observes the refusal from a real run.
+
+- **`unparseable-record`** (section 3). A file that cannot be read as a record is
+  refused instead of being read as an empty one. Three named causes: unresolved
+  merge-conflict markers, binary content, and a body with neither a `[resource]`
+  section nor a field line. Before this, the parser's `[resource]` fallback -
+  which synthetic fixtures need - turned garbage into a fieldless record, and a
+  conflict-marked file resolved to whichever side of the merge it walked last.
+  Both linted clean and exited 0.
+- **`duplicate-record-id`** (section 3). Two records in one family declaring the
+  same id are one identity with two bodies, so the tree is refused rather than
+  letting the loader pick one and strand the other. Nested directories made this
+  reachable with legal filenames.
+
+Both are skipped, not guessed, by the other rules: an unparseable record
+contributes no id, no schema, no edges, and no dangling targets, so it produces
+exactly one finding instead of a cascade. A family whose only record is
+unparseable is still a family - families come from directories now, not from the
+id pool - so the refusal blames the file rather than the declaration.
+
+**The id-less exemption is now real.** SPEC section 2 said the four id-less
+`roots/*/environment.tres` records were "fixed by path-keying", but `record.key`
+was never read: every lookup keyed on the id, so two id-less records sharing a
+stem silently collapsed and one was invisible to the cycle rule. Keys are now the
+id for a declared record and the path for an id-less one, with a separate id index
+for edge resolution. `idless-path-keyed` in the battery holds the exemption in
+place.
+
+Also: `test/cli.mjs` asserted a literal `13 refusal codes`, which failed on the
+15th. It now derives the count from `spec/refusals.json` - the drift this repo's
+own gates exist to refuse, caught in the gate itself. README and docs no longer
+advertise `npx tresridge` as the working path while the package is unpublished;
+the checkout form (`node bin/cli.mjs`) is primary and the npx form is marked as
+the post-publish one.
+
 ### The pack surface replaces profiles
 
 `profiles/` is gone. A pack is a directory with a `pack.json` manifest, an entry

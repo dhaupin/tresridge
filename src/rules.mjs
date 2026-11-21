@@ -161,13 +161,23 @@ export function buildContext(tree, decl) {
   const knownFamilies = new Set(decl.families.map((f) => f.key));
   const declFamily = new Map(decl.families.map((f) => [f.key, f]));
   const byFamily = new Map();
+  const byId = new Map();
   for (const r of tree.records) {
+    // An unparseable record has no readable fields, so it cannot carry an edge and
+    // must not shadow a readable record that shares its stem.
+    if (r.unparseable) continue;
     if (!byFamily.has(r.family)) byFamily.set(r.family, new Map());
-    byFamily.get(r.family).set(r.id, r);
+    byFamily.get(r.family).set(r.key, r);
+    // `byId` answers "which record does this id name?" - the question an edge asks.
+    // It is separate from `byFamily` because a key must be unique (id-less records key
+    // by path) while an id need not be (id-less records share their stem). An edge
+    // resolves against an id, so it reads this index.
+    if (!byId.has(r.family)) byId.set(r.family, new Map());
+    if (!byId.get(r.family).has(r.id)) byId.get(r.family).set(r.id, r);
   }
   const edgeOf = new Map();
   for (const e of decl.edges) edgeOf.set(edgeKey(e), e);
-  return { tree, decl, declared, knownFamilies, declFamily, byFamily, edgeOf };
+  return { tree, decl, declared, knownFamilies, declFamily, byFamily, byId, edgeOf };
 }
 
 /** The filename stem is the record's id (SPEC section 3). */
@@ -298,6 +308,7 @@ export const RULES = [
     run(ctx) {
       const out = [];
       for (const r of ctx.tree.records) {
+        if (r.unparseable) continue;
         const fam = ctx.declFamily.get(r.family);
         if (!fam) continue;
         // `schema` is OPTIONAL and advisory. A family may hold several schemas
@@ -312,12 +323,55 @@ export const RULES = [
     },
   },
   {
+    code: 'unparseable-record',
+    severity: 'violation',
+    scope: 'tree',
+    run(ctx) {
+      // Unreadable bytes are refused, never read. Before this rule the parser's
+      // `[resource]` fallback turned garbage into a fieldless record and a
+      // conflict-marked file into whichever side it walked last - so an unresolved
+      // merge passed the lint and the loader took a value nobody chose.
+      return ctx.tree.records
+        .filter((r) => r.unparseable)
+        .map((r) => ({ code: 'unparseable-record', record: r.file, detail: `cannot be read as a record: ${r.unparseable}` }));
+    },
+  },
+  {
+    code: 'duplicate-record-id',
+    severity: 'violation',
+    scope: 'tree',
+    run(ctx) {
+      // SPEC section 3: the filename IS the id, so two records carrying one id are
+      // one identity with two bodies - the loader picks one and the other is
+      // unreachable. Id-less records are exempt: their key is their path (section 2),
+      // which is what makes `roots/a/environment.tres` and `roots/b/...` legal.
+      const out = [];
+      const byKey = new Map();
+      for (const r of ctx.tree.records) {
+        if (r.unparseable || !r.idDeclared) continue;
+        const id = `${r.family}.${r.id}`;
+        const first = byKey.get(id);
+        if (first) {
+          out.push({
+            code: 'duplicate-record-id',
+            record: r.file,
+            detail: `id "${r.id}" is already declared by ${first} in family ${r.family} (the filename IS the id; one id, one record)`,
+          });
+        } else {
+          byKey.set(id, r.file);
+        }
+      }
+      return out;
+    },
+  },
+  {
     code: 'filename-id-mismatch',
     severity: 'violation',
     scope: 'tree',
     run(ctx) {
       const out = [];
       for (const r of ctx.tree.records) {
+        if (r.unparseable) continue;
         // Only when the record DECLARES an id. An id-less record's stem IS its id
         // (SPEC section 3); there is nothing to disagree with.
         if (!r.idDeclared) continue;
@@ -343,6 +397,7 @@ export const RULES = [
       const out = [];
       const seen = new Set();
       for (const r of ctx.tree.records) {
+        if (r.unparseable) continue;
         // Top-level fields (`currency_id`) AND level-1 nested keys
         // (`entries.item_id`). A nested `_id` that no edge declares is the same
         // defect as a top-level one - the spec says every `_id` field is
@@ -375,18 +430,15 @@ export const RULES = [
     run(ctx) {
       const out = [];
       for (const r of ctx.tree.records) {
+        if (r.unparseable) continue;
         for (const edge of ctx.decl.edges) {
           if (edge.family !== r.family) continue;
-
-        // A virtual edge with no pattern is a DECLARATION defect: `unknown-rule`
-
-        // names it once. Resolving it here would emit a dangler per value, burying
-
-        // the real problem under noise.
-
-        if (edge.kind === 'virtual' && !edge.pattern) continue;
+          // A virtual edge with no pattern is a DECLARATION defect: `unknown-rule`
+          // names it once. Resolving it here would emit a dangler per value, burying
+          // the real problem under noise.
+          if (edge.kind === 'virtual' && !edge.pattern) continue;
           for (const raw of edgeValues(r, edge)) {
-          for (const v of idsIn(raw)) {
+            for (const v of idsIn(raw)) {
               const ok = edge.kind === 'virtual'
                 ? resolvesVirtual(edge.pattern, ctx.decl.virtualFamilies, v, ctx.tree)
                 : resolves(edge.kind, edge.target, v, ctx.tree);
@@ -419,7 +471,9 @@ export const RULES = [
         // Follow the edge to ITS target family, not the declaring family. A
         // same-name id in a different family is not a cycle.
         const tkey = Array.isArray(e.target) ? e.target[0] : e.target;
-        const tpool = ctx.byFamily.get(tkey);
+        // Targets are found by ID: an edge names an id, and id-less records share a
+        // stem, so `byId` (not the path-keyed `byFamily`) is the index that answers.
+        const tpool = ctx.byId.get(tkey);
         if (!tpool) continue;
         for (const r of pool.values()) {
           const raw = r.fields.get(e.field);
@@ -584,6 +638,7 @@ export function runRules(tree, decl, opts = {}) {
 
   let edgeCount = 0;
   for (const r of tree.records) {
+    if (r.unparseable) continue;
     for (const edge of decl.edges) {
       if (edge.family !== r.family) continue;
       for (const raw of edgeValues(r, edge)) edgeCount += idsIn(raw).length;

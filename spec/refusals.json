@@ -31,6 +31,18 @@
       "detail": "a record's declared id disagrees with its filename stem"
     },
     {
+      "code": "unparseable-record",
+      "severity": "violation",
+      "section": "3",
+      "detail": "a .tres file cannot be read as a record: unresolved merge-conflict markers, binary content, or a body with neither a [resource] section nor any field line"
+    },
+    {
+      "code": "duplicate-record-id",
+      "severity": "violation",
+      "section": "3",
+      "detail": "two records in one family declare the same id (the filename IS the id, so one id means one record; id-less records are keyed by path and exempt)"
+    },
+    {
       "code": "undeclared-edge",
       "severity": "violation",
       "section": "7",

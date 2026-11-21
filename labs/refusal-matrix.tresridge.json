@@ -291,6 +291,48 @@
         "declErrors": []
       },
       "status": "agree"
+    },
+    {
+      "id": "unparseable-conflict",
+      "observed": {
+        "violations": [
+          "unparseable-record"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "unparseable-garbage",
+      "observed": {
+        "violations": [
+          "unparseable-record"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "duplicate-record-id",
+      "observed": {
+        "violations": [
+          "duplicate-record-id"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "idless-path-keyed",
+      "observed": {
+        "violations": [],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
     }
   ]
 }

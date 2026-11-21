@@ -276,7 +276,67 @@ try {
   {
     const r = cli(['rules']);
     expectCode('rules exits 0', r, 0);
-    check('rules lists the vocabulary', /13 refusal codes/.test(r.out), r.out.trim());
+    // The count is DERIVED from the vocabulary, never a constant: a literal here goes
+    // stale the moment a refusal is added, which is the drift this repo's own gates
+    // exist to refuse. (It read `13` and failed on the 15th code.)
+    const vocabCount = JSON.parse(readFileSync(join(ROOT, 'spec', 'refusals.json'), 'utf8')).codes.length;
+    check('rules lists the vocabulary', new RegExp(`${vocabCount} refusal codes`).test(r.out), r.out.trim());
+    const j = cli(['rules', '--json']);
+    expectCode('rules --json exits 0', j, 0);
+    const parsed = JSON.parse(j.out);
+    check('rules --json emits every code in the vocabulary', parsed.count === vocabCount && parsed.codes.length === vocabCount, j.out.trim().slice(0, 200));
+  }
+
+  // -- unreadable bytes are refused, never read -------------------------------
+  // A conflict-marked file carries BOTH sides of a field; reading either is a guess.
+  // Before `unparseable-record` it linted clean and the loader took the last side.
+  {
+    const d = make({
+      'relations.json': JSON.stringify({ schemaVersion: 1, families: [{ key: 'npcs', schema: 'NpcData', idPrefix: '' }], edges: [] }, null, 2) + '\n',
+      'npcs/npc_a.tres': 'script_class="NpcData"\nid = "npc_a"\n',
+      'npcs/npc_b.tres': '<<<<<<< HEAD\nscript_class="NpcData"\nid = "npc_b"\n=======\nscript_class="NpcData"\nid = "npc_b"\n>>>>>>> branch\n',
+    });
+    const r = cli(['lint', d]);
+    expectCode('a conflict-marked record exits 1', r, 1);
+    check('the refusal names the file and the cause', /unparseable-record\s+npcs\/npc_b\.tres.*merge conflict/.test(r.out), r.out.trim());
+    check('the readable sibling is NOT blamed', !/npc_a\.tres/.test(r.out), r.out.trim());
+  }
+  {
+    const d = make({
+      'relations.json': JSON.stringify({ schemaVersion: 1, families: [{ key: 'npcs', schema: 'NpcData', idPrefix: '' }], edges: [] }, null, 2) + '\n',
+      'npcs/npc_a.tres': 'this is not a tres file\n',
+    });
+    const r = cli(['lint', d]);
+    expectCode('a non-resource .tres exits 1', r, 1);
+    check('the refusal says why it could not be read', /unparseable-record.*no \[resource\] section/.test(r.out), r.out.trim());
+  }
+
+  // -- one id means one record ------------------------------------------------
+  // The loader would pick one body and leave the other unreachable, so the tree is
+  // refused. Nested so both filenames stay legal - the ID collides, not the name.
+  {
+    const d = make({
+      'relations.json': JSON.stringify({ schemaVersion: 1, families: [{ key: 'npcs', schema: 'NpcData', idPrefix: '' }], edges: [] }, null, 2) + '\n',
+      'npcs/npc_a.tres': 'script_class="NpcData"\nid = "npc_a"\n',
+      'npcs/sub/npc_a.tres': 'script_class="NpcData"\nid = "npc_a"\n',
+    });
+    const r = cli(['lint', d]);
+    expectCode('a duplicate record id exits 1', r, 1);
+    check('the refusal names the first declaration', /duplicate-record-id.*already declared by npcs\/npc_a\.tres/.test(r.out), r.out.trim());
+  }
+
+  // -- the id-less exemption is real, not a docstring ------------------------
+  // SPEC section 2 keys an id-less record by PATH. Two of them share a stem and are
+  // still two records; a path-blind key would silently shadow one.
+  {
+    const d = make({
+      'relations.json': JSON.stringify({ schemaVersion: 1, families: [{ key: 'roots', schema: 'RootData', idPrefix: '' }], edges: [] }, null, 2) + '\n',
+      'roots/a/environment.tres': 'script_class="RootData"\nname = "A"\n',
+      'roots/b/environment.tres': 'script_class="RootData"\nname = "B"\n',
+    });
+    const r = cli(['lint', d]);
+    expectCode('two id-less records sharing a stem are legal', r, 0);
+    check('both are counted as records', /1 families, 2 records/.test(r.out), r.out.trim());
   }
 
   // -- residue is counted, not a constant ------------------------------------

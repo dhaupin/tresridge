@@ -1,0 +1,9 @@
+<<<<<<< HEAD
+script_class="NpcData"
+id = "npc_warrior"
+home_zone_id = "zn_haven"
+=======
+script_class="NpcData"
+id = "npc_warrior"
+home_zone_id = "zn_other"
+>>>>>>> branch

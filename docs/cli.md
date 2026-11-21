@@ -12,6 +12,9 @@ tresridge is a zero-dependency lint you run from a checkout or from npm. It
 ships four verbs: three read or judge a tree, and one prints the refusal
 vocabulary. Exit contract: `0` clean, `1` violations, `2` usage.
 
+The examples below use `npx tresridge`; until the package is published, run the
+same lines as `node bin/cli.mjs` from a checkout.
+
 ```bash
 npx tresridge lint <tree> [--decl <file>] [--rules <module>] [--json]
 npx tresridge graph <tree> [--out <file>] [--against <file>] [--json]
@@ -19,6 +22,10 @@ npx tresridge doctor <tree> [--decl <file>] [--rules <module>]
 npx tresridge rules [--json]
 npx tresridge --version
 ```
+
+The package is not on the registry yet, so `npx tresridge` does not resolve today.
+From a checkout, substitute `node bin/cli.mjs` for `npx tresridge` in every line
+above - same verbs, same exit codes, no install and no dependencies.
 
 ## The verbs
 
