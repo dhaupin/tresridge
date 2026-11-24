@@ -45,7 +45,33 @@ advertise `npx tresridge` as the working path while the package is unpublished;
 the checkout form (`node bin/cli.mjs`) is primary and the npx form is marked as
 the post-publish one.
 
-### The pack surface replaces profiles
+  ### A tree too big for the heap is refused, not crashed
+
+  The record-count ceiling was calibrated on synthetic 2.4KB records and got real
+  trees wrong: synmergia records cost 3.5-4.0KB each, so the old 1.5M ceiling
+  admitted trees that then died. A 1.35M-record tree ran 321s and ended in
+  **SIGABRT (exit 134)** - an exit code this tool's 0/1/2 contract cannot express,
+  from a death no test could catch because it is a crash, not a finding.
+
+  The guard is now a heap estimate made **before** parsing:
+
+  - `heap ~= 900 bytes x records + 3.3 x source bytes`, fitted by least squares to
+    three measured corpora (200k of the smallest plausible records at 46B, 200k of
+    large ones at 7.6KB, 743k typical). Fit error -4.6% / -0.0% / +0.1%, and 5.9%
+    on a corpus held out of the fit.
+  - A tree predicted above **95%** of the heap limit is refused with exit 2, naming
+    the record count, source size, estimate and limit. The 1.35M tree now refuses
+    in 8.9s instead of dying after 321s.
+  - Predicting up front is what makes the refusal cheap. A sampling guard only
+    notices once V8 is already in mark-compact thrashing; the earlier version took
+    357s to reach the same verdict.
+  - 95% is measured, not cautious: shrinking the heap under a fixed 743k-record
+    tree, it completes at 88%, 92% and 95% of the limit and aborts only at 96-99%.
+    A threshold well below the cliff would refuse trees that run fine.
+  - Both coefficients are pinned by test - 10% drift in either fails the suite -
+    and `TRES_MAX_RECORDS` remains available as an explicit count cap.
+
+  ### The pack surface replaces profiles
 
 `profiles/` is gone. A pack is a directory with a `pack.json` manifest, an entry
 module, and its own refusals, so it can declare what it requires and carry a
