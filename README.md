@@ -1,4 +1,4 @@
-# tresridge 0.1.0
+# tresridge 0.9.0
 
 The `.tres` relation standard. **One edge grammar + one resolution contract, many hosts**: a tree of records becomes a declared graph, and one lint refuses an undeclared or dangling reference at author time.
 
@@ -27,17 +27,24 @@ One record, read by every consumer - the runtime loader, the authoring docs, the
 
 ## Usage
 
-```bash
-npx tresridge lint <tree>                    # every declared edge resolves; no undeclared _id
-npx tresridge lint <tree> --decl rel.json    # against a named declaration (default relations.json)
-npx tresridge lint <tree> --json             # { families, records, edges, violations, warnings }
+From a checkout (works today - no install, no dependencies):
 
-npx tresridge graph <tree>                   # infer a first-draft declaration from the tree
-npx tresridge graph <tree> --out rel.json    # write the draft
-npx tresridge doctor <tree>                  # the summary pass: families, edges, residue, violations
-npx tresridge rules                          # the refusal vocabulary this lint carries
-npx tresridge lint <tree> --rules p.mjs      # add a host profile's rules
+```bash
+node bin/cli.mjs lint <tree>                    # every declared edge resolves; no undeclared _id
+node bin/cli.mjs lint <tree> --decl rel.json    # against a named declaration (default relations.json)
+node bin/cli.mjs lint <tree> --json             # { families, records, edges, violations, warnings }
+
+node bin/cli.mjs graph <tree>                   # infer a first-draft declaration from the tree
+node bin/cli.mjs graph <tree> --out rel.json    # write the draft
+node bin/cli.mjs doctor <tree>                  # the summary pass: families, edges, residue, violations
+node bin/cli.mjs rules                          # the refusal vocabulary this lint carries
+node bin/cli.mjs lint <tree> --rules p.mjs      # add a host profile's rules
+node bin/cli.mjs --version                      # the packaged version
 ```
+
+Once the package is on the registry (see **Status** - it is not yet), every verb
+above is also `npx tresridge <verb>`, and a host installs it with
+`npm i -D tresridge`.
 
 Exit contract: `0` clean, `1` violations, `2` usage.
 
@@ -50,7 +57,24 @@ A single convention resolves most edges with no declaration:
 > **The target family is the last family token in the field name, pluralised.**
 > `giver_npc_id` → `npc` · `source_zone_id` → `zones` · `secondary_loot_table_id` → `loot_tables`
 
-This is **inference, not the contract** - it seeds a declaration. Measured on the reference deployment: the rule resolves **344 edges** and leaves **14 fields** to declare by hand.
+This is **inference, not the contract** - it seeds a declaration. Measured on the committed fixture ([`conformance/fixture/`](conformance/fixture/)), which anyone can re-run, the rule resolves every edge it can and leaves the rest as named residue:
+
+<!-- BEGIN GENERATED: fixture measurement -->
+
+| the committed fixture | |
+|---|---|
+| families | 6 |
+| records | 13 |
+| edges inferred | 3 |
+| residue fields | 2 |
+| edges declared | 5 |
+| edges resolved | 11 |
+| violations | 0 |
+| warnings | 0 |
+
+<!-- END GENERATED: fixture measurement -->
+
+Two residue fields survive: `npcs.class_id` and `npcs.book_id`. The first is a real reference the rule cannot guess (no `class` token in the field name resolves to `classes`); the second is a virtual key that is not a record id at all. Both are declared by hand in the fixture's `relations.json`, which is why the fixture lints clean.
 
 ## Enforcement is mechanical
 
@@ -75,13 +99,22 @@ An expired baseline stops excusing (`baseline-expired`). An unmatched one is rep
 
 ### Extending without forking
 
-A host adds rules, never edits the grammar:
+A host adds rules, never edits the grammar. Two ways in, one law:
 
 ```
-tresridge lint <tree> --rules profiles/godot/index.mjs
+node bin/cli.mjs lint <tree> --rules ./my-rules.mjs      # a one-off module
+node bin/cli.mjs lint <tree> --packs ./packs/public      # a packstruct pack, or a packs root
 ```
 
-Two laws bind a host rule: it may not invent a code (the code MUST be in the vocabulary), and it may not weaken a standing refusal (host rules ADD findings). `profiles/` holds the reference shape.
+Two laws bind a host rule: it may not invent a code (the code MUST be in the vocabulary it was handed), and it may not weaken a standing refusal (host rules ADD findings).
+
+A **pack** is the durable form: a directory with a `pack.json` and an entry module, per [packstruct](https://github.com/dhaupin/packstruct) v1. Its `checks[]` are rules, its `vocabulary` is merged before its rules are judged, and every finding it produces is stamped with the pack that made it. `packs/public/godot-shapes/` is the reference shape and it ships in this package; from a checkout, `node bin/cli.mjs lint <tree> --packs ./packs/public` is the whole install. (Once published, `npx tresridge lint <tree> --packs node_modules/tresridge/packs/public` is the same thing.)
+
+`--packs` is repeatable, and a pack declaring a `requires` token the run root does not provide is skipped **by name**, never silently.
+
+### Conformance: what tresridge claims, and what it declines
+
+`packstruct audit-conformance` grades a host against the v1 cases. tresridge passes **10/10**. With `--claims` it reports **9/10**: the missing case is the env-claims echo, a surface for packs that declare environment claims. tresridge declines it rather than faking the echo, because no pack in the family declares env claims today - the pack layer was built for the cases that carry meaning here (manifest grammar, entry contract, id census, lifecycle, refusals by name), and an echo of nothing would be a claim with no bytes behind it. If a pack ever ships env claims, the echo becomes load-bearing and gets implemented then.
 
 ## The site (a coreforge rig)
 
@@ -101,9 +134,9 @@ family's sites run - adopted here, not vendored.
 
 ## Status
 
-**v0.1 - the first cut (2026-11-17).** The spec, the front door, and the CLI land together. The extraction is proven, and the tool now proves itself: the refusal battery observes every verdict from a real lint run and refuses its own run on dishonesty. Measured on the reference deployment: 55 families, 1097 records, 61 declaration edges (49 inferred / 12 needing declaration), 6 real dangling refusals.
+**v0.1 - the first cut (2026-11-17).** The spec, the front door, and the CLI land together. The extraction is proven, and the tool now proves itself: the refusal battery observes every verdict from a real lint run and refuses its own run on dishonesty. The numbers this repo publishes are measured from the committed fixture above, never remembered; the reference deployment's own figures are a dated snapshot in [`labs/`](labs/).
 
-**M0** spec text - *done* · **M1** the CLI (`lint` / `graph` / `doctor`) - *done* · **M2** conformance harness + npm publish - *partial* (battery + cases ship; publish pending) · **M3** the reference deployment adopts - *designed* · **M4** the site rig (coreforge landing + docs) - *shipped in this branch*.
+**M0** spec text - *done* · **M1** the CLI (`lint` / `graph` / `doctor`) - *done* · **M2** conformance harness + npm publish - *partial* (battery + cases ship; **the package is not on the registry yet**, so `npx tresridge` does not resolve - run it from a checkout, or see [`DEPLOY.md`](DEPLOY.md) for the manual first cut and the tag-driven OIDC lane that takes over at 1.0.0) · **M3** the reference deployment adopts - *designed* · **M4** the site rig (coreforge landing + docs) - *shipped in this branch*.
 
 ## Family model, not family membership
 

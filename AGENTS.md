@@ -5,10 +5,13 @@
 - **Name:** tresridge (the `.tres` relation standard)
 - **Repo:** dhaupin/tresridge
 - **Core law:** declare the edge, resolve or refuse
-- **Owner:** synmergia. tresridge is a **synmergia project** that keeps the struct
-  family's *model* (this file, the spec/labs/conformance layout, the refusal battery)
-  but is **not a member of the family roster** - it is not registered in
-  govstruct, not published as a family arm, and has no family-domain site.
+- **Owner:** synmergia. tresridge is a **member of the struct family** (govstruct
+  member `tresridge`, role `arm`) and the **first production consumer is synmergia**,
+  the Godot MMORPG whose tree it was drawn from. Membership is a roster fact; the
+  consumer is a deployment fact. Neither is inferred from the other.
+- **Family arm:** tresridge speaks [packstruct](https://github.com/dhaupin/packstruct)
+  v1 as both a HOST (it loads packs and runs their checks) and a PRODUCER
+  (`packs/public/`). It is a `check`-profile host, so its packs are check packs.
 - The grammar is a picture of what the reference deployment's tree already does
   (1097 records, 55 families), not a re-design of it.
 
@@ -16,7 +19,7 @@
 
 tresridge is one repo with two halves, the shape coreforge itself runs (tool plus dogfood):
 
-- **The tool** (`bin/`, `src/`, `spec/`, `profiles/`) - the standard. This is the npm
+- **The tool** (`bin/`, `src/`, `spec/`, `packs/`) - the standard. This is the npm
   package. `npm run check:tool` is its battery.
 - **The site** (`web/`, `docs/`, `site.config.js`) - a **coreforge rig**. The landing
   (prestruct React/Vite, prerendered) and the docs (Jekyll), driven from one identity
@@ -42,8 +45,14 @@ family membership: the rig is `coreforge`, the tool is ours.
   with no check, an unproven refusal, or a section 7 table that drifted. Never add a
   refusal by editing the spec table: edit the vocabulary, then `vocab:write`.
 - **Hosts extend by adding rules, never by forking.** `--rules <module>` (or
-  `opts.extraRules`). A host rule may not invent a code (it MUST be in the vocabulary)
-  and may not weaken a standing refusal (rules ADD findings). `profiles/` is the shape.
+  `opts.extraRules`) for a one-off module, `--packs <dir>` (or `opts.packs`) for a
+  packstruct pack. A host rule may not invent a code (it MUST be in the vocabulary it
+  was handed) and may not weaken a standing refusal (rules ADD findings).
+  `packs/public/` is the shape, and it is the same artifact the family ecosystem reads.
+- **One manifest, two consumers.** A pack's `pack.json` is packstruct's (schemaVersion,
+  name, version, description, entry) plus tresridge's own keys (`adds`, `vocabulary`).
+  Never a second manifest beside it. A pack's `checks[]` ARE rules, and each carries
+  `id` (the key packstruct's census reads) beside `code` (tresridge's name for it).
 - **No suppression, ever.** There is no `--ignore`, no `--force`, no inline disable. A
   refusal is excused by a baseline with a reason and a clock (SPEC section 9), or not
   at all.
@@ -57,6 +66,24 @@ family membership: the rig is `coreforge`, the tool is ours.
   (SPEC section 2 carries the table).
 - Fixtures under `conformance/cases/` carry the refusal each norm exists for. A new norm
   ships with a case that breaks it, or it is not a norm.
+- **A clean exit over nothing is a bug, not a pass.** Every defect this tool has shipped was
+  the same shape: exit 0 while measuring the wrong thing (a root above the tree root inferred
+  0 edges; `doctor` summarised a tree with no declaration; `--against` compared keys and
+  missed a retargeted edge). When you add a verb or a gate, ask what it does when it has
+  nothing to judge, and make that exit `2`, never `0`.
+- **Test the binary, not just the library.** `test/cli.mjs` spawns `bin/cli.mjs` over real
+  bytes in temp dirs and asserts stdout/stderr/exit code. The library tests all passed while
+  the CLI silently passed a 0-edge tree, because nothing ran the program. Mutation-test every
+  guard: revert the fix, watch the suite fail, restore it. A check that cannot fail is not a
+  check.
+- **Published numbers are measured by a gate.** `scripts/check-docs.mjs` measures
+  `conformance/fixture/` and refuses when the README block disagrees; `docs:write` regenerates
+  it. Never hand-edit a count in the README or the spec table. A number you cannot re-run
+  belongs in `labs/` as a dated snapshot with its units named.
+- **Widening a declaration is not drift.** `diffDeclaration` compares targets as a SET: a
+  union that contains the inferred target is a human refinement. Only an omission (or a kind
+  flip) is drift. Do not "simplify" this to equality - the reference deployment widens two
+  rows to seven families and would be reported as broken.
 - The reader is host-neutral: `src/tres.mjs` knows nothing about any particular game's
   vocabulary. Do not put a rule in the standard that only one host can satisfy.
 - Zero runtime dependencies. Node ESM. Exit codes 0/1/2.

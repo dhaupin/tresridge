@@ -128,7 +128,7 @@ became data and the drift became impossible.
   `--force`, or inline disable anywhere.
 - **The extension surface.** `--rules <module>` on the CLI, `opts.extraRules` in the
   API, a `rules` verb to print the vocabulary. Two laws: a host rule may not invent a
-  code, and may not weaken a standing refusal. `profiles/godot/` is the reference.
+  code, and may not weaken a standing refusal. `packs/public/godot-shapes/` is the reference.
 - **SPEC sections 9 (baselines + enforcement), 12 (extending), 13 (transport), 14
   (non-goals).** Section 13 states the independence boundary: the unit of exchange is
   the declaration and the verdict, both plain JSON; no network in the core; a host may
@@ -197,12 +197,16 @@ on the count.
 
 ### Open
 
-- [ ] M1: the `--against` drift verb (diff inferred graph vs committed declaration; CI gate)
-- [ ] M1: `nested` path resolution (`entries[].item_id`) - the kind is declared, the resolver is not yet written
-- [ ] M2: npm publish (name verified free: `npm view tresridge` = E404)
-- [ ] M2: wire `npm test` into a GitHub Actions workflow
-- [ ] M3: the reference deployment authors `game/core/data/relations.gd` and rewrites its 2272-line regex lint as assertions over this walker
-- [ ] docs: the `/docs` site and `tresridge.creadev.org`
+- [ ] M2: npm publish (name verified free: `npm view tresridge` = E404, re-verified 2026-10-28)
+- [ ] M3: the reference deployment authors its declaration and rewrites its regex lint as assertions over this walker. **Layout corrected:** the tree root is `game/data/` (55 families, 1097 records); there is no `game/core/data/`. The declaration is `game/data/relations.json` and currently exists only on the unmerged `origin/docs/prd-tres` branch.
+- [ ] M3: the reference deployment adopts the root contract in its CI. Its `game/data` run is clean (`0 violations, 0 warnings`), but the gate must be invoked at the tree root, not at the project root.
+
+### Done (moved out of Open 2026-10-28; each verified by running it, not by reading it)
+
+- [x] M1: the `--against` drift verb (diff inferred graph vs committed declaration; CI gate). Now three-directional: `added`, `removed`, and `changed` - the last catches a row that exists on both sides but targets another family or carries another `kind`, which the pair-keyed diff reported as clean.
+- [x] M1: `nested` path resolution (`entries[].item_id`) - the resolver is written; `nested-ref-ok` / `nested-ref-dangling` / `nested-ref-undeclared` / `nested-spec-array-form` are battery rows, and `conformance/fixture/` resolves `loot_tables.entries.item_id` to `items`.
+- [x] M2: wire `npm test` into a GitHub Actions workflow - `.github/workflows/test.yml` runs `npm run check:tool` on Node 20 and 22.
+- [x] docs: the `/docs` site and `tresridge.creadev.org` - the site rig ships (`site.config.js` holds the domain; `docs/` is the Jekyll site, gated in the site battery).
 
 ## Session 2026-11-17 (a) - the first cut (M0)
 

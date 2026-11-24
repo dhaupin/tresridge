@@ -1,8 +1,0 @@
-{
-  "name": "godot",
-  "version": "0.1.0",
-  "description": "Reference profile: checks the Godot reference deployment wants that are not general enough for the spec.",
-  "adds": ["godot/id-required-when-prefixed"],
-  "entry": "index.mjs",
-  "vocabulary": "refusals.json"
-}

@@ -31,6 +31,18 @@
       "detail": "a record's declared id disagrees with its filename stem"
     },
     {
+      "code": "unparseable-record",
+      "severity": "violation",
+      "section": "3",
+      "detail": "a .tres file cannot be read as a record: unresolved merge-conflict markers, binary content, or a body with neither a [resource] section nor any field line"
+    },
+    {
+      "code": "duplicate-record-id",
+      "severity": "violation",
+      "section": "3",
+      "detail": "two records in one family declare the same id (the filename IS the id, so one id means one record; id-less records are keyed by path and exempt)"
+    },
+    {
       "code": "undeclared-edge",
       "severity": "violation",
       "section": "7",
@@ -58,7 +70,7 @@
       "code": "unknown-rule",
       "severity": "violation",
       "section": "7",
-      "detail": "a profile or baseline names a refusal code the vocabulary does not carry"
+      "detail": "a host module, pack, or baseline names a refusal code the vocabulary does not carry"
     },
     {
       "code": "baseline-expired",
@@ -71,6 +83,18 @@
       "severity": "warning",
       "section": "9",
       "detail": "a baseline excuses a refusal that no longer occurs; reported so it can be retired"
+    },
+    {
+      "code": "not-a-tree-root",
+      "severity": "violation",
+      "section": "1",
+      "detail": "the root passed is not the tree root: its children are records (a family directory), or one family spans many directories and schemas (a directory above the tree root), so no edge can resolve"
+    },
+    {
+      "code": "empty-tree",
+      "severity": "violation",
+      "section": "1",
+      "detail": "the root holds no .tres records, so a clean verdict would be vacuous"
     }
   ]
 }

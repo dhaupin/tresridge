@@ -1,0 +1,3 @@
+script_class="NpcData"
+id = "npc_monk"
+home_zone_id = "zn_frost"
