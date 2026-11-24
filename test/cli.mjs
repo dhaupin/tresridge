@@ -14,6 +14,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { estimateHeap } from '../src/tres.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = join(ROOT, 'bin', 'cli.mjs');
@@ -22,10 +23,10 @@ const fails = [];
 let checks = 0;
 
 /** Run the CLI. Returns { code, out, err } and never throws on a non-zero exit. */
-function cli(args, cwd = ROOT) {
+function cli(args, cwd = ROOT, env = process.env) {
   try {
     const out = execFileSync(process.execPath, [CLI, ...args], {
-      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+      cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env,
     });
     return { code: 0, out, err: '' };
   } catch (e) {
@@ -276,7 +277,67 @@ try {
   {
     const r = cli(['rules']);
     expectCode('rules exits 0', r, 0);
-    check('rules lists the vocabulary', /13 refusal codes/.test(r.out), r.out.trim());
+    // The count is DERIVED from the vocabulary, never a constant: a literal here goes
+    // stale the moment a refusal is added, which is the drift this repo's own gates
+    // exist to refuse. (It read `13` and failed on the 15th code.)
+    const vocabCount = JSON.parse(readFileSync(join(ROOT, 'spec', 'refusals.json'), 'utf8')).codes.length;
+    check('rules lists the vocabulary', new RegExp(`${vocabCount} refusal codes`).test(r.out), r.out.trim());
+    const j = cli(['rules', '--json']);
+    expectCode('rules --json exits 0', j, 0);
+    const parsed = JSON.parse(j.out);
+    check('rules --json emits every code in the vocabulary', parsed.count === vocabCount && parsed.codes.length === vocabCount, j.out.trim().slice(0, 200));
+  }
+
+  // -- unreadable bytes are refused, never read -------------------------------
+  // A conflict-marked file carries BOTH sides of a field; reading either is a guess.
+  // Before `unparseable-record` it linted clean and the loader took the last side.
+  {
+    const d = make({
+      'relations.json': JSON.stringify({ schemaVersion: 1, families: [{ key: 'npcs', schema: 'NpcData', idPrefix: '' }], edges: [] }, null, 2) + '\n',
+      'npcs/npc_a.tres': 'script_class="NpcData"\nid = "npc_a"\n',
+      'npcs/npc_b.tres': '<<<<<<< HEAD\nscript_class="NpcData"\nid = "npc_b"\n=======\nscript_class="NpcData"\nid = "npc_b"\n>>>>>>> branch\n',
+    });
+    const r = cli(['lint', d]);
+    expectCode('a conflict-marked record exits 1', r, 1);
+    check('the refusal names the file and the cause', /unparseable-record\s+npcs\/npc_b\.tres.*merge conflict/.test(r.out), r.out.trim());
+    check('the readable sibling is NOT blamed', !/npc_a\.tres/.test(r.out), r.out.trim());
+  }
+  {
+    const d = make({
+      'relations.json': JSON.stringify({ schemaVersion: 1, families: [{ key: 'npcs', schema: 'NpcData', idPrefix: '' }], edges: [] }, null, 2) + '\n',
+      'npcs/npc_a.tres': 'this is not a tres file\n',
+    });
+    const r = cli(['lint', d]);
+    expectCode('a non-resource .tres exits 1', r, 1);
+    check('the refusal says why it could not be read', /unparseable-record.*no \[resource\] section/.test(r.out), r.out.trim());
+  }
+
+  // -- one id means one record ------------------------------------------------
+  // The loader would pick one body and leave the other unreachable, so the tree is
+  // refused. Nested so both filenames stay legal - the ID collides, not the name.
+  {
+    const d = make({
+      'relations.json': JSON.stringify({ schemaVersion: 1, families: [{ key: 'npcs', schema: 'NpcData', idPrefix: '' }], edges: [] }, null, 2) + '\n',
+      'npcs/npc_a.tres': 'script_class="NpcData"\nid = "npc_a"\n',
+      'npcs/sub/npc_a.tres': 'script_class="NpcData"\nid = "npc_a"\n',
+    });
+    const r = cli(['lint', d]);
+    expectCode('a duplicate record id exits 1', r, 1);
+    check('the refusal names the first declaration', /duplicate-record-id.*already declared by npcs\/npc_a\.tres/.test(r.out), r.out.trim());
+  }
+
+  // -- the id-less exemption is real, not a docstring ------------------------
+  // SPEC section 2 keys an id-less record by PATH. Two of them share a stem and are
+  // still two records; a path-blind key would silently shadow one.
+  {
+    const d = make({
+      'relations.json': JSON.stringify({ schemaVersion: 1, families: [{ key: 'roots', schema: 'RootData', idPrefix: '' }], edges: [] }, null, 2) + '\n',
+      'roots/a/environment.tres': 'script_class="RootData"\nname = "A"\n',
+      'roots/b/environment.tres': 'script_class="RootData"\nname = "B"\n',
+    });
+    const r = cli(['lint', d]);
+    expectCode('two id-less records sharing a stem are legal', r, 0);
+    check('both are counted as records', /1 families, 2 records/.test(r.out), r.out.trim());
   }
 
   // -- residue is counted, not a constant ------------------------------------
@@ -294,6 +355,107 @@ try {
     try { parsed = JSON.parse(r.out); } catch { /* reported below */ }
     const row = parsed?.residue?.undeclared?.find((u) => u.field === 'mystery_id');
     check('residue counts every record carrying the field', row && row.count === 3, JSON.stringify(parsed?.residue?.undeclared));
+
+    // -- output is capped per code, and the cap cannot hide a KIND of problem ------
+    // A 10k-record tree printed 5,883 identical `dangling-ref` lines and scrolled the
+    // one refusal that mattered off the screen. The cap is per code, so a rare refusal
+    // always prints in full even when a common one is truncated.
+    //
+    // The rare code here is `cycle`, chosen because it runs AFTER `dangling-ref` in the
+    // rule order. A naive global cap would print the first 20 rows - all dangling - and
+    // drop the cycle entirely, which is exactly the silent pass this guards.
+    {
+      const decl = JSON.stringify({
+        schemaVersion: 1,
+        families: [
+          { key: 'npcs', schema: 'NpcData', idPrefix: '' },
+          { key: 'zones', schema: 'ZoneData', idPrefix: '' },
+        ],
+        edges: [
+          { family: 'npcs', field: 'home_zone_id', target: 'zones', kind: 'ref', required: true },
+          // required: true because the cycle rule only follows required refs - an
+          // optional link is a graph hint, not a structural commitment.
+          { family: 'npcs', field: 'rival_id', target: 'npcs', kind: 'ref', required: true },
+        ],
+      }, null, 2) + '\n';
+      const files = { 'relations.json': decl, 'zones/zn_haven.tres': 'script_class="ZoneData"\nid = "zn_haven"\n' };
+      for (let i = 0; i < 30; i++) files[`npcs/npc_${i}.tres`] = `script_class="NpcData"\nid = "npc_${i}"\nhome_zone_id = "zn_gone"\n`;
+      files['npcs/npc_cyc_a.tres'] = 'script_class="NpcData"\nid = "npc_cyc_a"\nhome_zone_id = "zn_haven"\nrival_id = "npc_cyc_b"\n';
+      files['npcs/npc_cyc_b.tres'] = 'script_class="NpcData"\nid = "npc_cyc_b"\nhome_zone_id = "zn_haven"\nrival_id = "npc_cyc_a"\n';
+      const d = make(files);
+
+      const capped = cli(['lint', d]);
+      expectCode('a capped run still exits 1', capped, 1);
+      check('the cap prints the 20 it allows', (capped.out.match(/FAIL  dangling-ref/g) || []).length === 20,
+        `saw ${(capped.out.match(/FAIL  dangling-ref/g) || []).length}`);
+      check('the cap states how many it withheld', /10 more dangling-ref/.test(capped.out),
+        capped.out.split('\n').find((l) => /more dangling-ref/.test(l)) || 'no line');
+      check('the true count is still reported', /31 violation\(s\)/.test(capped.out), capped.out.trim().split('\n').pop());
+      check('a rare code emitted AFTER the common one is not truncated away', /FAIL  cycle/.test(capped.out),
+        'cycle missing - the cap hid a distinct kind of problem');
+
+      const all = cli(['lint', d, '--all']);
+      expectCode('--all exits 1 too', all, 1);
+      check('--all prints every dangling ref', (all.out.match(/FAIL  dangling-ref/g) || []).length === 30,
+        `saw ${(all.out.match(/FAIL  dangling-ref/g) || []).length}`);
+      check('--all prints no truncation notice', !/more dangling-ref/.test(all.out), 'still truncated');
+
+      const js = cli(['lint', d, '--json']);
+      let parsed = null;
+      try { parsed = JSON.parse(js.out); } catch { /* reported below */ }
+      check('--json is unbounded regardless of the cap', parsed?.violations?.length === 31, `got ${parsed?.violations?.length}`);
+    }
+
+
+    // -- doctor names what is wrong, not just how much ----------------------------
+    {
+      const files = { 'relations.json': DECL, 'zones/zn_haven.tres': 'script_class="ZoneData"\nid = "zn_haven"\n' };
+      for (let i = 0; i < 5; i++) files[`npcs/npc_${i}.tres`] = `script_class="NpcData"\nid = "npc_${i}"\nhome_zone_id = "zn_gone"\n`;
+      const d = make(files);
+      const r = cli(['doctor', d]);
+      expectCode('doctor exits 1 on violations', r, 1);
+      check('doctor breaks violations down by code', /by code:/.test(r.out), r.out.trim());
+      check('doctor names the code and its worst family', /dangling-ref\s+- npcs \(5\)/.test(r.out),
+        r.out.split('\n').find((l) => /dangling-ref/.test(l)) || 'no row');
+    }
+
+    // -- an unreadably large tree is refused by name, not killed by the OOM killer ----
+    // 1M records is measured to run (2.77GB peak RSS against a 4.3GB default heap), but
+    // past ~1.5M V8 aborts with SIGABRT (exit 134) after minutes of mark-compact
+    // thrashing - outside the 0/1/2 contract. The ceiling is env-overridable so this
+    // test can drive it with 3 files instead of 1.5 million.
+    {
+      const d = make(CLEAN);
+      const prev = process.env.TRES_MAX_RECORDS;
+      process.env.TRES_MAX_RECORDS = '1';
+      const r = cli(['lint', d]);
+      if (prev === undefined) delete process.env.TRES_MAX_RECORDS;
+      else process.env.TRES_MAX_RECORDS = prev;
+      expectCode('an over-ceiling tree is a usage refusal (exit 2)', r, 2);
+      check('the refusal names the ceiling and the file count',
+        /exceeds the 1-record ceiling/.test(r.err) && /2 \.tres files/.test(r.err), r.err.trim());
+      check('the refusal is not a crash (no V8 stack)', !/mark-compact|Last few GCs|SIGABRT/.test(r.err), r.err.trim().slice(0, 120));
+    }
+
+    // -- the heap estimator matches what the reader actually costs --------------------
+    // Node clamps --max-old-space-size to a 200MB floor, so the guard cannot be driven by
+    // shrinking the heap in a test. Assert the model instead, against the corpora it was
+    // fitted to: if the coefficients drift, the guard starts refusing trees that fit (or
+    // admitting trees that abort), and this fails before either happens for real.
+    {
+      const measured = [
+        { name: '200k smallest records (46B)', records: 200000, source: 9.4e6, heap: 223e6 },
+        { name: '200k large records (7.6KB)', records: 200000, source: 1444e6, heap: 4915e6 },
+        { name: '743k typical records', records: 743403, source: 553e6, heap: 2485e6 },
+      ];
+      for (const m of measured) {
+        const est = estimateHeap(m.records, m.source);
+        const err = Math.abs(est - m.heap) / m.heap;
+        check(`the heap estimate is within 10% for ${m.name}`, err < 0.10,
+          `estimated ${Math.round(est / 1e6)}MB, measured ${Math.round(m.heap / 1e6)}MB (${(err * 100).toFixed(1)}% off)`);
+      }
+    }
+
   }
 } finally {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });

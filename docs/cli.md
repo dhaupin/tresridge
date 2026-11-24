@@ -12,6 +12,9 @@ tresridge is a zero-dependency lint you run from a checkout or from npm. It
 ships four verbs: three read or judge a tree, and one prints the refusal
 vocabulary. Exit contract: `0` clean, `1` violations, `2` usage.
 
+The examples below use `npx tresridge`; until the package is published, run the
+same lines as `node bin/cli.mjs` from a checkout.
+
 ```bash
 npx tresridge lint <tree> [--decl <file>] [--rules <module>] [--json]
 npx tresridge graph <tree> [--out <file>] [--against <file>] [--json]
@@ -19,6 +22,10 @@ npx tresridge doctor <tree> [--decl <file>] [--rules <module>]
 npx tresridge rules [--json]
 npx tresridge --version
 ```
+
+The package is not on the registry yet, so `npx tresridge` does not resolve today.
+From a checkout, substitute `node bin/cli.mjs` for `npx tresridge` in every line
+above - same verbs, same exit codes, no install and no dependencies.
 
 ## The verbs
 
@@ -114,6 +121,43 @@ npx tresridge lint data/ --decl relations.json
 
 `--json` returns the whole verdict as data: `{ families, records, edges,
 violations, warnings }`.
+
+Output is capped at 20 findings per refusal code, with a line counting the rest;
+`--all` prints every one and `--json` is always unbounded. The cap is per code,
+so a rare refusal is never scrolled off by a common one.
+
+## Scale
+
+The tree is read once and held in memory, so cost is linear in records and in source
+bytes. Measured on generated corpora, on four cores:
+
+| corpus | records | source | wall | peak heap |
+|--------|---------|--------|------|-----------|
+| real tree (synmergia) | 1,097 | 1.0MB | 43ms | - |
+| typical records | 100,000 | 78MB | 3.7s | 270MB |
+| typical records | 743,403 | 553MB | 35s | 2.49GB |
+| smallest records (46B) | 200,000 | 9MB | 57s | 223MB |
+| large records (7.6KB) | 200,000 | 1.4GB | 108s | 4.92GB |
+
+Cost is roughly `900 bytes x records + 3.3 x source bytes` of live heap. Both terms
+matter: 46-byte records cost 24x their own size, because per-record overhead dominates
+at that end, while field data dominates for large records. The reader estimates that
+sum before parsing and refuses up front if it exceeds 95% of the heap, rather than
+letting V8 abort. The difference is not cosmetic - a 1.35M-record tree that took 321s
+to reach SIGABRT (exit 134, outside the 0/1/2 contract) is now refused in 14s with exit
+`2` and the numbers that produced the refusal. Raise `--max-old-space-size` if you have
+the headroom, or lint the tree in parts.
+
+That 95% is deliberate. Shrinking the heap under a fixed 743k-record tree, it completes
+at 88%, 92% and 95% of the limit (33-41s) and only aborts at 96-99% - so a guard set
+well below the cliff would refuse trees that run fine. `TRES_MAX_RECORDS` still caps the
+record count outright, for callers who want a fixed bound regardless of heap.
+
+Parallelism does not help here, and this was measured rather than assumed. Async I/O
+runs 3-4x slower than sync because the promise overhead per ~700B file exceeds the
+read. Worker threads lose at two threads (0.84x) and worse beyond, because the
+structured-clone payload costs more than the parse it saves. Read and parse are each
+about 40% of the walk, and neither parallelizes cheaply at this file size.
 
 ## The summary pass: `doctor`
 

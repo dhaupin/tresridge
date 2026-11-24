@@ -1,0 +1,14 @@
+{
+  "id": "duplicate-record-id",
+  "base": false,
+  "add": {
+    "npcs/nested/npc_smith.tres": "script_class=\"NpcData\"\nid = \"npc_smith\"\nhome_zone_id = \"zn_haven\"\n"
+  },
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "duplicate-record-id"
+    ]
+  }
+}

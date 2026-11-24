@@ -13,7 +13,7 @@ import { collectPacks, checksOf, vocabularyOf, discoverPackDirs, loadPackDir, ce
 
 const USAGE = `tresridge - the .tres relation standard
 
-  tresridge lint <tree> [--decl <file>] [--rules <module>] [--packs <dir>]... [--json]
+  tresridge lint <tree> [--decl <file>] [--rules <module>] [--packs <dir>]... [--json] [--all]
   tresridge graph <tree> [--out <file>] [--against <file>] [--json]
   tresridge doctor <tree> [--decl <file>] [--rules <module>] [--packs <dir>]... [--json]
   tresridge rules [--json]                # the refusal vocabulary this lint carries
@@ -36,8 +36,12 @@ const USAGE = `tresridge - the .tres relation standard
                     A pack declaring \"requires\" the run root does not provide is
                     skipped by name, never silently.
 
-  Exit: 0 clean, 1 violations, 2 usage.`;
+    --json            the full result as JSON (unbounded - a machine reads it)
+    --all             print every finding. Without it the list is capped at 20 per
+                      code and the rest are counted: a 10k-record tree can carry
+                      thousands of findings, and a wall of text hides the count.
 
+    Exit: 0 clean, 1 violations, 2 usage.`;
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -46,6 +50,28 @@ const flag = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 
 const has = (name) => argv.includes(name);
 
 if (!cmd || cmd === '--help' || cmd === '-h') { console.log(USAGE); process.exit(cmd ? 0 : 2); }
+
+/**
+ * Print findings, capped per code unless `--all`.
+ *
+ * A 10k-record tree can carry thousands of findings, and printing all of them is
+ * how a real problem hides: the reader scrolls past 5,000 identical `dangling-ref`
+ * lines and never sees the one `unparseable-record` at the end. The cap is per
+ * CODE rather than global, so every distinct refusal still appears at least once -
+ * truncation can never hide a kind of problem, only the repetition of one.
+ */
+const printFindings = (rows, label, lineOf) => {
+  if (has('--all')) { for (const r of rows) console.log(lineOf(r)); return; }
+  const byCode = new Map();
+  for (const r of rows) {
+    if (!byCode.has(r.code)) byCode.set(r.code, []);
+    byCode.get(r.code).push(r);
+  }
+  for (const [code, group] of byCode) {
+    for (const r of group.slice(0, 20)) console.log(lineOf(r));
+    if (group.length > 20) console.log(`  ... ${group.length - 20} more ${code} (--all to print every one)`);
+  }
+};
 
 // The version is read from package.json, never restated: a hand-copied literal
 // is a second source that drifts silently from the one npm publishes.
@@ -265,8 +291,8 @@ try {
     if (has('--json')) { console.log(JSON.stringify(result, null, 2)); }
     else {
       console.log(`tresridge lint: ${result.families} families, ${result.records} records, ${result.edges} edges`);
-      for (const w of result.warnings) console.log(`  WARN  ${w.code}  ${w.record} .${w.field} -> "${w.target || ''}"`);
-      for (const v of result.violations) console.log(`  FAIL  ${v.code}  ${v.record}${v.field ? ' .' + v.field : ''}  ${v.detail}`);
+        printFindings(result.warnings, 'WARN', (w) => `  WARN  ${w.code}  ${w.record} .${w.field} -> "${w.target || ''}"`);
+        printFindings(result.violations, 'FAIL', (v) => `  FAIL  ${v.code}  ${v.record}${v.field ? ' .' + v.field : ''}  ${v.detail}`);
       console.log(`  ${result.violations.length} violation(s), ${result.warnings.length} warning(s)`);
     }
     process.exit(result.violations.length ? 1 : 0);
@@ -335,6 +361,29 @@ try {
       console.log(`  declared edges:  ${decl.edges.length}`);
       console.log(`  violations:      ${result.violations.length}`);
       console.log(`  warnings:        ${result.warnings.length}`);
+      // A bare count is not actionable at 10k records: `violations: 5883` says
+      // nothing about whether it is one broken family or every record in the tree.
+      // The breakdown names each code and its worst family, so the next command is
+      // obvious without re-running with --all.
+      if (result.violations.length) {
+        console.log('  by code:');
+        const byCode = new Map();
+        for (const v of result.violations) {
+          if (!byCode.has(v.code)) byCode.set(v.code, []);
+          byCode.get(v.code).push(v);
+        }
+        for (const [code, group] of byCode) {
+          const fams = new Map();
+          for (const v of group) {
+            const f = v.record.split('/')[0];
+            fams.set(f, (fams.get(f) || 0) + 1);
+          }
+          const worst = [...fams].sort((a, b) => b[1] - a[1]).slice(0, 3)
+            .map(([f, n]) => `${f} (${n})`).join(', ');
+          console.log(`    ${String(group.length).padStart(5)}  ${code}  - ${worst}`);
+        }
+        console.log('  run `tresridge lint <tree> --all` for every finding, or --json for the machine read');
+      }
     }
     process.exit(result.violations.length ? 1 : 0);
   }

@@ -1,0 +1,14 @@
+{
+  "id": "unparseable-garbage",
+  "base": false,
+  "add": {
+    "npcs/npc_broken.tres": "this is not a tres file at all\n"
+  },
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "unparseable-record"
+    ]
+  }
+}

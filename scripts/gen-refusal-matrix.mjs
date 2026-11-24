@@ -233,6 +233,52 @@ const cases = [
     overrideEdges: [],
     expect: { codes: ['empty-tree'] },
   },
+  {
+    id: 'unparseable-conflict',
+    // An unresolved merge conflict carries BOTH sides of a field. Reading either one
+    // is a guess: this file resolved to the `>>>>>>>` side and linted clean before
+    // the rule existed, so an unresolved merge passed the gate and the loader took a
+    // value nobody chose. Both sides are valid ids here, which is the case that
+    // stayed silent - a dangling side would at least have been caught.
+    add: {
+      'npcs/npc_warrior.tres': '<<<<<<< HEAD\nscript_class="NpcData"\nid = "npc_warrior"\nhome_zone_id = "zn_haven"\n=======\nscript_class="NpcData"\nid = "npc_warrior"\nhome_zone_id = "zn_other"\n>>>>>>> branch\n',
+    },
+    expect: { codes: ['unparseable-record'] },
+  },
+  {
+    id: 'unparseable-garbage',
+    // A body that is not a resource at all: a truncated write, a stray file that
+    // happens to end `.tres`, a binary blob. The `[resource]` fallback that synthetic
+    // fixtures need read this as a record with no fields and exited 0.
+    add: { 'npcs/npc_broken.tres': 'this is not a tres file at all\n' },
+    expect: { codes: ['unparseable-record'] },
+  },
+  {
+    id: 'duplicate-record-id',
+    // SPEC section 3: the filename IS the id. Two records under one id are one
+    // identity with two bodies - the loader picks one and the other is unreachable.
+    // Nested so the filenames stay legal; the id collides, which is the defect.
+    add: { 'npcs/nested/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = "zn_haven"\n' },
+    expect: { codes: ['duplicate-record-id'] },
+  },
+  {
+    id: 'idless-path-keyed',
+    // The spec's acknowledged exception, made real: two id-less records share a stem
+    // and are NOT a collision, because an id-less record's key is its path
+    // (section 2). Before path-keying existed this reported nothing at all, so the
+    // row proves the exemption holds rather than proving the refusal fires.
+    files: {
+      'zones/zn_haven.tres': 'script_class="ZoneData"\nid = "zn_haven"\nname = "Haven"\n',
+      'roots/a/environment.tres': 'script_class="RootData"\nname = "A"\n',
+      'roots/b/environment.tres': 'script_class="RootData"\nname = "B"\n',
+    },
+    families: [
+      { key: 'zones', schema: 'ZoneData', idPrefix: '' },
+      { key: 'roots', schema: 'RootData', idPrefix: '' },
+    ],
+    overrideEdges: [],
+    expect: { violations: [] },
+  },
 ];
 
 /** Read every file under a dir into a { relPath: contents } map. */

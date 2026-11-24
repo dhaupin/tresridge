@@ -49,7 +49,7 @@ A **family** is one directory of records bound to one schema. It is the unit tha
 
 **Receipts per frozen row.** Every row cites the engine evidence it mirrors, so "conforming to the spec" and "what one repo does" never blur. Engine: the reference deployment's probe, `scripts/tresridge_probe.mjs` @ 2026-11-17:
 
-- `key` MUST match its directory — measured: 55 families, every directory named for its family. The one mismatch class found was four id-less `roots/*/environment.tres` collapsing on stem (fixed by path-keying).
+- `key` MUST match its directory — measured: 55 families, every directory named for its family. The one mismatch class found was four id-less `roots/*/environment.tres` collapsing on stem (fixed by path-keying: an id-less record's key is its path, so two of them are two records).
 - `schema` MUST match the record's — measured: 67 schemas carry a `class_name`; the record declares it via `script_class` in the `.tres` header.
 - `filename == id` — measured: lint-enforced for the prefixed families; the id-less `roots/*` records are keyed by path, the one acknowledged exception.
 - `idPrefix` — measured: the runtime registry reserves `itm_`/`skl_`/`zn_`/`qst_`/`fct_`; the authoring baseline mandates `item_`/`zone_`/`quest_`/`faction_`. **These two disagree, and v1 does not pick a winner** (section 10, MIGRATION-NOTE): the prefix is host-owned, and the spec records whatever the host ships.
@@ -61,6 +61,11 @@ The body of a record is **host-owned in full**: its fields, its types, its value
 > **The filename IS the id.** A record's identity is its filename stem. A record whose declared id disagrees with its filename is a load refuse, not a silent success.
 
 This is the single fact every consumer (loader, docs, site, lint) needs and none of them may restate. Everything else about the record is the host's.
+
+Two corollaries follow from one id meaning one record, and both are refusals rather than guesses:
+
+- **`duplicate-record-id`** — two records in one family declaring the same id are one identity with two bodies. The loader would pick one and the other would be unreachable, so the tree is refused instead. An **id-less** record is keyed by its path (section 2), not its stem, which is what keeps `roots/a/environment.tres` and `roots/b/environment.tres` two records rather than a collision.
+- **`unparseable-record`** — a file that cannot be read as a record is refused, never read as an empty one. The named causes are unresolved merge-conflict markers (the file carries *both* sides of a field, so reading either is a guess), binary content, and a body with neither a `[resource]` section nor a field line. A synthetic fixture may omit the `[resource]` header — that is why the parser has a fallback — but it still carries fields; a body with nothing to read is not a record.
 
 ## 4. The edge (frozen for v1)
 
@@ -116,6 +121,8 @@ A conforming lint refuses with a one-line error naming the record, the field, an
 | `name-dir-mismatch` | violation | 2 | a family key disagrees with the directory it is declared for |
 | `schema-mismatch` | violation | 2 | a family declares a schema and a record in it carries a different one |
 | `filename-id-mismatch` | violation | 3 | a record's declared id disagrees with its filename stem |
+| `unparseable-record` | violation | 3 | a .tres file cannot be read as a record: unresolved merge-conflict markers, binary content, or a body with neither a [resource] section nor any field line |
+| `duplicate-record-id` | violation | 3 | two records in one family declare the same id (the filename IS the id, so one id means one record; id-less records are keyed by path and exempt) |
 | `undeclared-edge` | violation | 7 | a field ends _id/_ids and no edge declares it, and it is not literal |
 | `dangling-ref` | violation | 7 | a declared edge names a target no record in the target family carries |
 | `cycle` | violation | 7 | a declared scalar ref chain returns to its start |

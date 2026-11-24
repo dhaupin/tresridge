@@ -1,0 +1,10 @@
+{
+  "id": "idless-path-keyed",
+  "base": false,
+  "add": {},
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "violations": []
+  }
+}
