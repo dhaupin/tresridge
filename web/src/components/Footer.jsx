@@ -13,7 +13,7 @@ export default function Footer() {
       <div className="wrap footer-inner">
         <span>- a {site.name} shell site</span>
         {NAV_ITEMS
-          .filter(i => ['GitHub'].includes(i.label))
+          .filter(i => ['GitHub', 'npm'].includes(i.label))
           .map(i => (
             <a key={i.label} href={i.href} target="_blank" rel="noreferrer">{i.label}</a>
           ))}

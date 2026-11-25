@@ -25,7 +25,9 @@ npx tresridge --version
 
 The package is not on the registry yet, so `npx tresridge` does not resolve today.
 From a checkout, substitute `node bin/cli.mjs` for `npx tresridge` in every line
-above - same verbs, same exit codes, no install and no dependencies.
+above - same verbs, same exit codes, no install and no dependencies. The registry
+page is [npmjs.com/package/tresridge](https://www.npmjs.com/package/tresridge);
+it goes live with the 0.9.0 cut.
 
 ## The verbs
 

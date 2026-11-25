@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.0] - 2026-11-24
 
 ### The silent-pass class: unreadable bytes and duplicate identities
 
@@ -13,16 +13,16 @@ by adversarial vetting of the shipped 0.9.0, and both now have a battery row tha
 observes the refusal from a real run.
 
 - **`unparseable-record`** (section 3). A file that cannot be read as a record is
-  refused instead of being read as an empty one. Three named causes: unresolved
-  merge-conflict markers, binary content, and a body with neither a `[resource]`
-  section nor a field line. Before this, the parser's `[resource]` fallback -
-  which synthetic fixtures need - turned garbage into a fieldless record, and a
-  conflict-marked file resolved to whichever side of the merge it walked last.
-  Both linted clean and exited 0.
+refused instead of being read as an empty one. Three named causes: unresolved
+merge-conflict markers, binary content, and a body with neither a `[resource]`
+section nor a field line. Before this, the parser's `[resource]` fallback -
+which synthetic fixtures need - turned garbage into a fieldless record, and a
+conflict-marked file resolved to whichever side of the merge it walked last.
+Both linted clean and exited 0.
 - **`duplicate-record-id`** (section 3). Two records in one family declaring the
-  same id are one identity with two bodies, so the tree is refused rather than
-  letting the loader pick one and strand the other. Nested directories made this
-  reachable with legal filenames.
+same id are one identity with two bodies, so the tree is refused rather than
+letting the loader pick one and strand the other. Nested directories made this
+reachable with legal filenames.
 
 Both are skipped, not guessed, by the other rules: an unparseable record
 contributes no id, no schema, no edges, and no dangling targets, so it produces
@@ -45,45 +45,45 @@ advertise `npx tresridge` as the working path while the package is unpublished;
 the checkout form (`node bin/cli.mjs`) is primary and the npx form is marked as
 the post-publish one.
 
-  ### A tree too big for the heap is refused, not crashed
+### A tree too big for the heap is refused, not crashed
 
-  The record-count ceiling was calibrated on synthetic 2.4KB records and got real
-  trees wrong: synmergia records cost 3.5-4.0KB each, so the old 1.5M ceiling
-  admitted trees that then died. A 1.35M-record tree ran 321s and ended in
-  **SIGABRT (exit 134)** - an exit code this tool's 0/1/2 contract cannot express,
-  from a death no test could catch because it is a crash, not a finding.
+The record-count ceiling was calibrated on synthetic 2.4KB records and got real
+trees wrong: synmergia records cost 3.5-4.0KB each, so the old 1.5M ceiling
+admitted trees that then died. A 1.35M-record tree ran 321s and ended in
+**SIGABRT (exit 134)** - an exit code this tool's 0/1/2 contract cannot express,
+from a death no test could catch because it is a crash, not a finding.
 
-  The guard is now a heap estimate made **before** parsing:
+The guard is now a heap estimate made **before** parsing:
 
-  - `heap ~= 900 bytes x records + 3.3 x source bytes`, fitted by least squares to
-    three measured corpora (200k of the smallest plausible records at 46B, 200k of
-    large ones at 7.6KB, 743k typical). Fit error -4.6% / -0.0% / +0.1%, and 5.9%
-    on a corpus held out of the fit.
-  - A tree predicted above **95%** of the heap limit is refused with exit 2, naming
-    the record count, source size, estimate and limit. The 1.35M tree now refuses
-    in 8.9s instead of dying after 321s.
-  - Predicting up front is what makes the refusal cheap. A sampling guard only
-    notices once V8 is already in mark-compact thrashing; the earlier version took
-    357s to reach the same verdict.
-  - 95% is measured, not cautious: shrinking the heap under a fixed 743k-record
-    tree, it completes at 88%, 92% and 95% of the limit and aborts only at 96-99%.
-    A threshold well below the cliff would refuse trees that run fine.
-  - Both coefficients are pinned by test - 10% drift in either fails the suite -
-    and `TRES_MAX_RECORDS` remains available as an explicit count cap.
+- `heap ~= 900 bytes x records + 3.3 x source bytes`, fitted by least squares to
+  three measured corpora (200k of the smallest plausible records at 46B, 200k of
+  large ones at 7.6KB, 743k typical). Fit error -4.6% / -0.0% / +0.1%, and 5.9%
+  on a corpus held out of the fit.
+- A tree predicted above **95%** of the heap limit is refused with exit 2, naming
+  the record count, source size, estimate and limit. The 1.35M tree now refuses
+  in 8.9s instead of dying after 321s.
+- Predicting up front is what makes the refusal cheap. A sampling guard only
+  notices once V8 is already in mark-compact thrashing; the earlier version took
+  357s to reach the same verdict.
+- 95% is measured, not cautious: shrinking the heap under a fixed 743k-record
+  tree, it completes at 88%, 92% and 95% of the limit and aborts only at 96-99%.
+  A threshold well below the cliff would refuse trees that run fine.
+- Both coefficients are pinned by test - 10% drift in either fails the suite -
+  and `TRES_MAX_RECORDS` remains available as an explicit count cap.
 
-  ### The pack surface replaces profiles
+### The pack surface replaces profiles
 
 `profiles/` is gone. A pack is a directory with a `pack.json` manifest, an entry
 module, and its own refusals, so it can declare what it requires and carry a
 vocabulary of its own - which the profile never could.
 
 - `packs/public/godot-shapes/` is the reference shape, and it ships in the
-  tarball: `--packs node_modules/tresridge/packs/public` is the whole install.
+tarball: `--packs node_modules/tresridge/packs/public` is the whole install.
 - `packs/pack-ledger.json` records the pack ids.
 - `scripts/run-packs.mjs` runs the conformance battery: 10/10 cases honored,
-  9/10 under `--claims` (see the README on the env-claims echo).
+9/10 under `--claims` (see the README on the env-claims echo).
 - SPEC section 12 now reads "the host and pack surface"; section 7's table is
-  regenerated from `spec/refusals.json`.
+regenerated from `spec/refusals.json`.
 
 Breaking for anyone who pinned `profiles/godot/`: the path moves to
 `packs/public/godot-shapes/`. The pack also gains one rule the profile never
@@ -91,8 +91,6 @@ had - `godot/id-required-when-prefixed`, a violation when a family declares an
 `idPrefix` and a record carries no explicit `id` line - so a tree that passed
 under the profile can fail under the pack. That is the intended direction: the
 pack is where a host's law gets teeth.
-
-## [0.9.0] - 2026-11-20
 
 The first registry cut. Everything below landed after 0.1.0 and before the
 package reached npm: the enforcement layer that makes the spec checkable, the
