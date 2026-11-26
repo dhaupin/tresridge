@@ -73,6 +73,21 @@ const cases = [
     expect: { violations: [] },
   },
   {
+    id: 'nonid-ref-value',
+    // A value that is not id-shaped can never resolve, so it must REFUSE rather than
+    // vanish. Before this case, the reader matched only id characters inside the
+    // quotes, so `"O'Brien"` produced no value at all and the tree linted clean (#20).
+    add: { 'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = "O\'Brien"\n' },
+    expect: { codes: ['dangling-ref'] },
+  },
+  {
+    id: 'empty-ref-value',
+    // An empty string is Godot's "no reference": it names no target, so it is not a
+    // dangle. This is the one exemption in the non-id refusal.
+    add: { 'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = ""\n' },
+    expect: { violations: [] },
+  },
+  {
     id: 'schema-mismatch',
     add: { 'npcs/npc_smith.tres': 'script_class="WrongData"\nid = "npc_smith"\nhome_zone_id = "zn_haven"\n' },
     expect: { codes: ['schema-mismatch'] },

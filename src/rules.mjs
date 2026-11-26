@@ -30,21 +30,37 @@ export const SCHEMA_VERSION = 1;
  * kind: a field can end `_id` and hold a non-id).
  */
 export function idsIn(raw) {
+  return quotedValues(raw).filter((v) => ID_SHAPE.test(v));
+}
+
+/**
+ * Non-id values in an `_id`-shaped field: a `literal` finding.
+ *
+ * Reads the same quoted runs `idsIn` does, so the two can never disagree about
+ * which values exist - only about which ones are ids.
+ */
+export function nonIdValues(raw) {
+  return quotedValues(raw).filter((v) => !ID_SHAPE.test(v));
+}
+
+/**
+ * Every quoted run in a raw value text, whatever it contains.
+ *
+ * The earlier reader matched only `[A-Za-z0-9_.:-]+` INSIDE the quotes, so a value
+ * carrying an apostrophe, a space, or a slash matched nothing at all: `to = "Rook's
+ * Own"` produced zero values, the edge count fell to zero, and the lint reported a
+ * clean tree. A reader that cannot see a value is not a reader that found nothing -
+ * it is a reader that was never handed the bytes. Matching any run inside the quotes
+ * puts the value in front of the checker, which is what lets the checker refuse it.
+ */
+export function quotedValues(raw) {
   const out = [];
-  for (const m of String(raw).matchAll(/"([A-Za-z0-9_.:-]+)"/g)) {
-    if (/^[a-z0-9][a-z0-9_.:-]*$/.test(m[1])) out.push(m[1]);
-  }
+  for (const m of String(raw).matchAll(/"([^"]*)"/g)) out.push(m[1]);
   return out;
 }
 
-/** Non-id (PascalCase-led) values in an `_id`-shaped field: a `literal` finding. */
-export function nonIdValues(raw) {
-  const out = [];
-  for (const m of String(raw).matchAll(/"([A-Za-z0-9_.:-]+)"/g)) {
-    if (!/^[a-z0-9][a-z0-9_.:-]*$/.test(m[1])) out.push(m[1]);
-  }
-  return out;
-}
+/** An id is lowercase-led and made of id characters (SPEC section 3). */
+const ID_SHAPE = /^[a-z0-9][a-z0-9_.:-]*$/;
 
 /**
  * Resolve one edge reference against the tree.
@@ -232,6 +248,14 @@ export const RULES = [
       const out = [];
       const codes = new Set(ctx.vocabulary || []);
       for (const e of ctx.decl.edges || []) {
+        // An edge row whose own `family` is not declared checks nothing: the row is
+        // filed under a key no record answers to, so every value it would judge goes
+        // unseen. The misspelling then surfaces as a MISLEADING `undeclared-edge` on
+        // the real field - or as nothing at all when the field is not `_id`-shaped.
+        // Refuse the row, not its symptom.
+        if (!ctx.knownFamilies.has(e?.family)) {
+          out.push({ code: 'unknown-rule', record: `${e?.family}.${e?.field}`, detail: `edge row names family ${JSON.stringify(e?.family)}, which is not declared - the row checks nothing` });
+        }
         if (!KINDS.includes(e?.kind)) {
           out.push({ code: 'unknown-rule', record: `${e?.family}.${e?.field}`, detail: `edge kind MUST be one of ${KINDS.join('/')}: ${JSON.stringify(e?.kind)}` });
         }
@@ -453,19 +477,35 @@ export const RULES = [
           // the real problem under noise.
           if (edge.kind === 'virtual' && !edge.pattern) continue;
           for (const raw of edgeValues(r, edge)) {
-            for (const v of idsIn(raw)) {
-              const ok = edge.kind === 'virtual'
-                ? resolvesVirtual(edge.pattern, ctx.decl.virtualFamilies, v, ctx.tree)
-                : resolves(edge.kind, edge.target, v, ctx.tree);
+            // Every quoted value is judged, not only the id-shaped ones. A value that
+            // is not id-shaped can never resolve, so skipping it is a silent pass
+            // dressed as a clean tree: `to = "Rook's Own"` used to yield zero values
+            // and the edge count fell to zero with it. An EMPTY string is the one
+            // exemption - Godot writes it for "no reference", so it names no target
+            // rather than a target that is missing.
+            for (const v of quotedValues(raw)) {
+              if (!v) continue;
+              const idShaped = ID_SHAPE.test(v);
+              // `literal` is the honesty kind (SPEC section 5): the field is declared
+              // and never resolved, so a non-id value there is the POINT, not a
+              // refusal. Every other kind must be able to name a target, and a
+              // non-id-shaped value can never do that.
+              const ok = edge.kind === 'literal' ? true
+                : !idShaped ? false
+                  : edge.kind === 'virtual'
+                    ? resolvesVirtual(edge.pattern, ctx.decl.virtualFamilies, v, ctx.tree)
+                    : resolves(edge.kind, edge.target, v, ctx.tree);
               if (!ok) {
-                const row = { code: 'dangling-ref', record: r.file, field: edge.field, target: v, detail: edge.kind === 'virtual'
-                  ? `virtual edge ${r.family}.${edge.field} pattern "${edge.pattern}", "${v}" does not match or its stems do not resolve`
-                  : `edge ${r.family}.${edge.field} -> ${edge.target}, "${v}" not found` };
-              // `required: false` downgrades to a warning - acknowledged, not asserted.
-              if (edge.required === false) row.severity = 'warning';
-              out.push(row);
+                const row = { code: 'dangling-ref', record: r.file, field: edge.field, target: v, detail: !idShaped
+                  ? `edge ${r.family}.${edge.field} -> ${edge.target}, "${v}" is not id-shaped so it can never resolve (declare the field \`literal\` if it is not a reference)`
+                  : edge.kind === 'virtual'
+                    ? `virtual edge ${r.family}.${edge.field} pattern "${edge.pattern}", "${v}" does not match or its stems do not resolve`
+                    : `edge ${r.family}.${edge.field} -> ${edge.target}, "${v}" not found` };
+                // `required: false` downgrades to a warning - acknowledged, not asserted.
+                if (edge.required === false) row.severity = 'warning';
+                out.push(row);
+              }
             }
-          }
           }
         }
       }
@@ -674,7 +714,10 @@ export function runRules(tree, decl, opts = {}) {
     if (r.unparseable) continue;
     for (const edge of decl.edges) {
       if (edge.family !== r.family) continue;
-      for (const raw of edgeValues(r, edge)) edgeCount += idsIn(raw).length;
+      // Count what the checker JUDGED, not what it could parse as an id: a value
+      // refused as non-id-shaped is still a reference instance, and a count that
+      // omits it reports a smaller tree than the one that was linted.
+      for (const raw of edgeValues(r, edge)) edgeCount += quotedValues(raw).filter(Boolean).length;
     }
   }
 

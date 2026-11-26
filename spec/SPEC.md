@@ -160,6 +160,15 @@ The declaration itself is validated by the same rule set as the tree (`validateD
 
 The `graph` verb is the adoption on-ramp: it DERIVES `relations.json` from an existing tree, so a host starts from truth.
 
+**Residue has two classes, and only one of them is inferred from field names.**
+
+- `undeclared` - a field that ENDS `_id`/`_ids` (or is a nested `*.item_id`) but whose name carries no family token, so the naming rule cannot pick a target. It is a reference by shape; a human names the target.
+- `probable` - a field the naming rule cannot see at all, whose VALUES are ids carried by another family. It exists because a host that names its references `edges[].to`, `related`, or `cites` would otherwise get "0 edges, 0 residue" over a tree full of references - the on-ramp reports success while the graph is invisible.
+
+A `probable` row is **evidence, not a verdict**, and it carries the evidence: `count` (distinct values that name an id elsewhere), `distinct` (distinct values in the field), and `ratio` (`count / distinct`). A host reads the ratio and decides. Measured on the reference deployment, real references score 0.79-1.00 and a coincidence scores 0.04 - one enum value that happens to equal an id in a small family. Nothing in `probable` is ever written into a declaration: inference seeds, a human decides, and the lint never infers at check time.
+
+A top-level `id` is the record's own identity (section 3), never a reference, so it is never `probable`; a nested `rewards[].id` is a real reference and is.
+
 **Exit contract: `0` clean, `1` violations, `2` usage.** The three are disjoint and a host may
 branch on them:
 

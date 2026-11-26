@@ -94,6 +94,116 @@ try {
     check('dangling ref names the code', /dangling-ref/.test(r.out), r.out.trim());
   }
 
+  // -- a reference value that is not id-shaped is judged, not skipped (#20) ---
+  // The reader matched only id characters INSIDE the quotes, so `"O'Brien"` matched
+  // nothing: the field vanished, the edge count fell with it, and the run looked clean.
+  for (const value of ["O'Brien_target", "Rook's Own", 'a/b', 'has space']) {
+    const d = make({ ...CLEAN, 'npcs/npc_smith.tres': `script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = "${value}"\n` });
+    const r = cli(['lint', d]);
+    expectCode(`a non-id value ${JSON.stringify(value)} is refused`, r, 1);
+    check(`the refusal names dangling-ref for ${JSON.stringify(value)}`, /dangling-ref/.test(r.out), r.out.trim());
+    check(`the refusal says the value is not id-shaped for ${JSON.stringify(value)}`, /not id-shaped/.test(r.out), r.out.trim());
+    // The count must include the value that was judged, or the summary reports a
+    // smaller tree than the one that was linted.
+    check(`the edge count includes ${JSON.stringify(value)}`, /1 edges/.test(r.out), r.out.trim());
+  }
+
+  // An EMPTY string is "no reference", not a dangling one: Godot writes it.
+  {
+    const d = make({ ...CLEAN, 'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = ""\n' });
+    expectCode('an empty reference value is not a dangle', cli(['lint', d]), 0);
+  }
+
+  // `literal` stays the honesty kind: a non-id value there is the POINT, never a
+  // refusal (SPEC section 5). This guards the #20 fix from breaking it.
+  {
+    const decl = JSON.stringify({
+      schemaVersion: 1,
+      families: [{ key: 'npcs', schema: 'NpcData', idPrefix: '' }],
+      edges: [{ family: 'npcs', field: 'external_id', kind: 'literal' }],
+    }, null, 2) + '\n';
+    const d = make({
+      'relations.json': decl,
+      'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nexternal_id = "X-99"\n',
+    });
+    expectCode('a literal field holding a non-id is clean', cli(['lint', d]), 0);
+  }
+
+  // -- graph makes a non-*_id reference visible (#22) -------------------------
+  // `graph` only looked at fields ending _id/_ids, so a host naming its references
+  // `edges[].to` got "0 edges, 0 residue" over a tree full of references.
+  {
+    const d = make({
+      'species/sp_1.tres': 'script_class="SpeciesData"\nid = "sp_1"\n',
+      'fallacies/fal_1.tres': 'script_class="FallacyData"\nid = "fal_1"\nedges = [{\n"to": "sp_1"\n}]\n',
+    });
+    const r = cli(['graph', d, '--json']);
+    expectCode('graph runs on a non-*_id reference tree', r, 0);
+    const parsed = JSON.parse(r.out);
+    check('the naming rule still infers no edge from `to`', parsed.declaration.edges.length === 0,
+      `${parsed.declaration.edges.length} inferred`);
+    check('the reference is reported as probable residue',
+      (parsed.residue.probable || []).length === 1, JSON.stringify(parsed.residue.probable));
+    check('the probable row names the field', parsed.residue.probable?.[0]?.field === 'edges.to',
+      JSON.stringify(parsed.residue.probable?.[0]));
+    check('the probable row names the target family', parsed.residue.probable?.[0]?.targets?.includes('species'),
+      JSON.stringify(parsed.residue.probable?.[0]?.targets));
+    check('the probable row counts its values', parsed.residue.probable?.[0]?.count === 1,
+      JSON.stringify(parsed.residue.probable?.[0]?.count));
+
+    // The text output must SAY it: a JSON-only field is still a blank page to a host
+    // running the on-ramp by hand.
+    const t = cli(['graph', d]);
+    check('the text output reports probable refs', /probable: 1 field/.test(t.out), t.out.trim());
+    check('the text output names the field', /fallacies\.edges\.to/.test(t.out), t.out.trim());
+    check('the text output says how to declare it', /literal/.test(t.out), t.out.trim());
+  }
+
+  // A TOP-LEVEL `id` is record identity, never a reference. On the reference
+  // deployment this produced 6 false positives (achievements.id -> titles, etc.),
+  // because two families legitimately hold the same id. A NESTED `.id` is a real
+  // reference and must survive this filter.
+  {
+    const d = make({
+      'species/sp_1.tres': 'script_class="SpeciesData"\nid = "shared"\n',
+      'zones/shared.tres': 'script_class="ZoneData"\nid = "shared"\nrewards = [{\n"id": "shared"\n}]\n',
+    });
+    const r = cli(['graph', d, '--json']);
+    const parsed = JSON.parse(r.out);
+    const prob = parsed.residue.probable || [];
+    check('a top-level id shared across families is not probable residue',
+      !prob.some((x) => x.field === 'id'), JSON.stringify(prob.map((x) => x.field)));
+    check('a nested .id is still reported as probable',
+      prob.some((x) => x.field === 'rewards.id'), JSON.stringify(prob.map((x) => x.field)));
+  }
+
+  // The evidence must be auditable: `distinct` counts DISTINCT values, so a ratio
+  // above 1.00 is impossible. An occurrence count on one side once produced 2.00.
+  {
+    const d = make({
+      'species/sp_1.tres': 'script_class="SpeciesData"\nid = "sp_1"\n',
+      'fallacies/fal_1.tres': 'script_class="FallacyData"\nid = "fal_1"\nrels = [{\n"to": "sp_1"\n}, {\n"to": "sp_1"\n}]\n',
+    });
+    const parsed = JSON.parse(cli(['graph', d, '--json']).out);
+    const row = (parsed.residue.probable || []).find((x) => x.field === 'rels.to');
+    check('a repeated value counts once in distinct', row?.distinct === 1, JSON.stringify(row));
+    check('the ratio never exceeds 1.00', row ? row.ratio <= 1 : false, JSON.stringify(row));
+  }
+
+  // A field whose values are NOT ids from another family stays silent: widened
+  // residue is for references, not for every string field.
+  {
+    const d = make({
+      'species/sp_1.tres': 'script_class="SpeciesData"\nid = "sp_1"\nname = "Elf"\n',
+      'fallacies/fal_1.tres': 'script_class="FallacyData"\nid = "fal_1"\nnote = "unrelated text"\n',
+    });
+    const r = cli(['graph', d, '--json']);
+    const parsed = JSON.parse(r.out);
+    check('a non-reference string field is not probable residue',
+      (parsed.residue.probable || []).length === 0, JSON.stringify(parsed.residue.probable));
+  }
+
+
   // -- exit 2: usage ---------------------------------------------------------
   expectCode('no arguments is a usage error', cli([]), 2);
   expectCode('unknown verb is a usage error', cli(['bogus', '/tmp']), 2);
@@ -589,6 +699,65 @@ try {
 
 
   }
+
+  // --- the package API surface (issue #24) ---------------------------------
+  // `exports` is the public API: a host that wants lint-on-save must be able to
+  // `import 'tresridge'`, not reach into `src/`. These spawn a real resolver
+  // because an exports map is enforced by Node's loader, not by anything the
+  // library can assert about itself - reading package.json proves nothing.
+  {
+    const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+    check('the package declares an exports map', !!pkg.exports, 'no exports field');
+    check('the root subpath is exported', pkg.exports?.['.'] !== undefined, 'no "." entry');
+    check('graph is exported', pkg.exports?.['./graph'] !== undefined, 'no "./graph" entry');
+    check('rules is exported', pkg.exports?.['./rules'] !== undefined, 'no "./rules" entry');
+    check('the spec is exported', pkg.exports?.['./spec/*'] !== undefined, 'no "./spec/*" entry');
+
+    // Every exports target must be a file that actually exists - a typo here is
+    // an import that fails only after publish.
+    for (const [sub, rel] of Object.entries(pkg.exports || {}).filter(([k]) => !k.includes('*'))) {
+      let exists = true;
+      try { readFileSync(join(ROOT, rel)); } catch { exists = false; }
+      check(`exports target for "${sub}" exists`, exists, `${rel} missing`);
+    }
+
+    // The real proof: resolve by package name from outside the repo, the way a
+    // consumer would. Reading package.json proves nothing; Node's loader decides.
+    const consumer = mkdtempSync(join(tmpdir(), 'tresridge-consumer-'));
+    dirs.push(consumer);
+    mkdirSync(join(consumer, 'node_modules'), { recursive: true });
+    try {
+      const { symlinkSync } = await import('node:fs');
+      symlinkSync(ROOT, join(consumer, 'node_modules', 'tresridge'), 'dir');
+    } catch { /* a stale link on a re-run; the import probe below decides */ }
+
+    const probe = (spec) => {
+      try {
+        const out = execFileSync(process.execPath, [
+          '--input-type=module', '-e',
+          `import('${spec}').then(m=>console.log(JSON.stringify(Object.keys(m))))`,
+        ], { cwd: consumer, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+        return { ok: true, keys: JSON.parse(out.trim()) };
+      } catch (e) {
+        return { ok: false, err: String(e.stderr || e.message) };
+      }
+    };
+
+    const root = probe('tresridge');
+    check('a consumer can import "tresridge" by name', root.ok, root.err?.split('\n')[0]);
+    check('the root export carries lint()', root.ok && root.keys.includes('lint'), JSON.stringify(root.keys));
+    check('the root export carries lintRoot()', root.ok && root.keys.includes('lintRoot'), JSON.stringify(root.keys));
+
+    const g = probe('tresridge/graph');
+    check('a consumer can import "tresridge/graph"', g.ok, g.err?.split('\n')[0]);
+    check('the graph export carries inferDeclaration()', g.ok && g.keys.includes('inferDeclaration'), JSON.stringify(g.keys));
+
+    // A deep src/ path must NOT resolve: that is the point of the map. If this
+    // passes, the map is absent or a wildcard leaked the internals back open.
+    const deep = probe('tresridge/src/lint.mjs');
+    check('a deep src/ import is refused by the exports map', !deep.ok, 'src/ is still reachable');
+  }
+
 } finally {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
 }

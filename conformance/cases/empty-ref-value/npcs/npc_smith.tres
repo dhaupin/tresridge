@@ -1,0 +1,3 @@
+script_class="NpcData"
+id = "npc_smith"
+home_zone_id = ""

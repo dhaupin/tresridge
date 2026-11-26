@@ -3,6 +3,14 @@
   "version": "0.9.0",
   "description": "The .tres relation standard: one edge grammar, one resolution contract, many hosts.",
   "type": "module",
+  "exports": {
+    ".": "./src/lint.mjs",
+    "./graph": "./src/graph.mjs",
+    "./rules": "./src/rules.mjs",
+    "./tres": "./src/tres.mjs",
+    "./spec/*": "./spec/*",
+    "./package.json": "./package.json"
+  },
   "license": "MIT",
   "engines": {
     "node": ">=20"
@@ -64,5 +72,9 @@
   "devDependencies": {
     "coreforge": "^1.0.0",
     "packstruct": "1.1.2"
-  }
+  },
+  "bugs": {
+    "url": "https://github.com/dhaupin/tresridge/issues"
+  },
+  "homepage": "https://tresridge.creadev.org"
 }

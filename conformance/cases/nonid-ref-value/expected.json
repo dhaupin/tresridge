@@ -1,0 +1,6 @@
+{
+  "violations": [
+    "dangling-ref"
+  ],
+  "warnings": []
+}

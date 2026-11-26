@@ -323,6 +323,20 @@ try {
       console.log(`tresridge graph: ${tree.families.length} families, ${tree.records.length} records, ${declaration.edges.length} edges inferred`);
       console.log(`  residue: ${residue.undeclared.length} field(s) need declaration`);
       for (const u of residue.undeclared.slice(0, 20)) console.log(`    ${String(u.count).padStart(4)}  ${u.family}.${u.field}`);
+      // A field the naming rule cannot see, whose values ARE ids elsewhere. Printed
+      // because the alternative is a blank page: the on-ramp reported "0 edges, 0
+      // residue" over a tree carrying 2,000 references (issue #22).
+      const prob = residue.probable || [];
+      if (prob.length) {
+        console.log(`  probable: ${prob.length} field(s) look like references but are not *_id named`);
+        for (const u of prob.slice(0, 20)) {
+          // The ratio is the evidence: 1.00 means every distinct value names an id
+          // elsewhere, 0.04 means one value coincides. Printing only the count would
+          // make a coincidence look like a reference.
+          console.log(`    ${String(u.count).padStart(4)}/${String(u.distinct).padEnd(4)} ${u.ratio.toFixed(2)}  ${u.family}.${u.field} -> ${u.targets.join('|')}`);
+        }
+        console.log('  (declare these by hand: ref/refs/nested if they are edges, literal if not)');
+      }
       if (out) console.log(`  draft written: ${out}`);
     }
     process.exit(0);
@@ -350,6 +364,7 @@ try {
         records: tree.records.length,
         edgesInferred: declaration.edges.length,
         needsDeclaring: residue.undeclared.length,
+              probableDeclaring: (residue.probable || []).length,
         declaration: { path: declPath, edges: decl.edges.length },
         violations: result.violations,
         warnings: result.warnings,
@@ -358,6 +373,8 @@ try {
       console.log(`tresridge doctor: ${tree.families.length} families, ${tree.records.length} records`);
       console.log(`  edges inferred:  ${declaration.edges.length}`);
       console.log(`  needs declaring: ${residue.undeclared.length} field(s)`);
+            const probN = (residue.probable || []).length;
+            if (probN) console.log(`  probable refs:   ${probN} field(s) not *_id named (see \`graph\`)`);
       console.log(`  declared edges:  ${decl.edges.length}`);
       console.log(`  violations:      ${result.violations.length}`);
       console.log(`  warnings:        ${result.warnings.length}`);
