@@ -111,9 +111,18 @@ family membership: the rig is `coreforge`, the tool is ours.
 
 ## Release
 
-- 0.9.x is the manual lane (`npm publish` by a human, if it ships at all). This is a
-  synmergia project: publishing is optional and synmergia-owned, never a family ladder.
-- CHANGELOG.md is Keep-a-Changelog; every PR adds an Unreleased item.
+- 0.9.x is the manual lane (`npm publish` by a human). 0.9.0 shipped this way on
+  2026-11-26 and is `dist-tags.latest`. This is a synmergia project: publishing is
+  optional and synmergia-owned, never a family ladder.
+- `packs/` is on coreforge's family-default forbidden list, so every `verify-release`
+  invocation passes `--allow packs/` - the reference pack is a shipped artifact here,
+  not a dev rig. Drop the flag and the ladder fails a clean cut with `FORBIDDEN
+  contents in the tarball: packs/...`, including on the tag-triggered verify job.
+- A manual cut carries no provenance attestation, and `verify-release --npm` asserts
+  one. That is why `publish.yml` routes 0.x to the `--pack` ladder instead: the served
+  bytes and integrity, minus the attestation this lane cannot produce.
+- CHANGELOG.md is Keep-a-Changelog. The top section is the version actually on npm;
+  an `[Unreleased]` heading over a released tree is a claim the gates do not catch.
 
 ## Branches
 
