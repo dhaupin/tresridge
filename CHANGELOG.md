@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The `cycle` rule follows a chain, not one hop.** It read only the first value of a
+  multi-valued field and the first matching family of a union target, so a cycle reached
+  through any other value was invisible. It now walks the reference chain to a fixed
+  point and reports the loop, which is what SPEC §7 always described. A cycle that spans
+  families, or whose ids collide across families, now has a conformance case each
+  (`cycle-across-families`, `cycle-same-id-across-families`).
+
+- **`graph --against` answers a `probable` field against the declaration.** The residue
+  list is the on-ramp: it names fields inference could not resolve so a human can declare
+  them. Once declared, the row was still counted as a removal, so the list could never
+  shrink and no honest declaration satisfied the drift gate - a tree with 25 declared
+  probable fields reported 26 phantom removals. A declared probable field is now the
+  answer to the row, not drift. The filter applies to reporting only: the diff still sees
+  the row, so the exemption is computed from evidence rather than assumed.
+
+- **A nested container is not probable residue.** A key whose value is itself an array or
+  dict holds structure, not candidate ids, so its quoted keys are no longer read as
+  unresolved references. `hordes.waves.spawns` invented a row whose real reference sits
+  one level deeper than this standard reads, and the row could not be answered.
+
 ## [0.9.0] - 2026-11-26
 
 The first registry cut, published to npm. `npx tresridge` resolves from any machine, and the
