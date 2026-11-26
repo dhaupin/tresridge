@@ -26,9 +26,10 @@ name: publish
 # stamped package.json ships both, plus `prepublishOnly` (the battery that
 # rides every publish).
 #
-# tresridge IS the library: `files` ships bin/, src/, spec/, packs/, none of
-# which is on the family-default forbidden list (labs/, web/, docs/, scripts/,
-# node_modules/, .github/), so the verify step needs no `--allow`.
+# tresridge IS the library: `files` ships bin/, src/, spec/, packs/. `packs/` IS
+# on the family-default forbidden list (it is a dev tree on most adopters), so
+# every verify invocation passes `--allow packs/` - the pack is the shipped
+# artifact here, not a dev rig. Without it the forbidden scan fails a clean cut.
 #
 # The gate refuses 0.x on purpose: tresridge is on the manual ship lane until
 # 1.0.0 (see DEPLOY.md). Linking the package to this repo under npmjs.com ->
@@ -196,8 +197,9 @@ jobs:
           set -e
           V="$(node -p "require('./package.json').version")"
           NAME=$(node -p "require('./package.json').name")
-          # tresridge is the library: the tarball is bin/, src/, spec/, packs/,
-          # none on the family-default forbidden list, so no --allow is needed.
+          # tresridge is the library: the tarball is bin/, src/, spec/, packs/.
+          # `packs/` is on the family-default forbidden list, so it is allowed
+          # explicitly - the reference pack is a shipped artifact here.
           case "$V" in
             0.*)
               # The 0.x manual lane is published by a human, so no OIDC trust chain
@@ -209,10 +211,10 @@ jobs:
               echo "verify: $V is a manual-lane cut - no provenance attestation exists by design"
               TMP=$(mktemp -d)
               npm pack "$NAME@$V" --pack-destination "$TMP" > /dev/null
-              npx --no-install coreforge verify-release --pack "$TMP/$NAME-$V.tgz"
+              npx --no-install coreforge verify-release --pack "$TMP/$NAME-$V.tgz" --allow packs/
               ;;
             *)
-              npx --no-install coreforge verify-release --npm --version "$V"
+              npx --no-install coreforge verify-release --npm --version "$V" --allow packs/
               ;;
           esac
           npx --no-install coreforge verify-release --gh --tag "v$V" --asset "$NAME-$V.tgz"

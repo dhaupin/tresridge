@@ -63,7 +63,14 @@ attestation, because there the lane produced it.
 To check the published result yourself, `npm run release:verify -- --npm` walks the
 registry ladder (latest == packaged version, served sha512 == metadata integrity,
 then the full pack ladder on the bytes actually served). `npm run release:verify --
---pack <tgz>` runs the same contents ladder offline on a tarball.
+--pack <tgz>` runs the same contents ladder offline on a tarball. Both carry
+`--allow packs/` because `packs/` is on coreforge's family-default forbidden list
+while the reference pack is a shipped artifact here.
+
+The 0.9.0 cut was a manual publish, so it carries no provenance attestation. The
+ladder asserts one, so `--npm` reports that as a named failure on 0.x by design;
+`publish.yml` routes 0.x to the `--pack` ladder instead, which checks the served
+bytes and integrity minus the attestation this lane cannot produce.
 
 Publishing is **optional and synmergia-owned**. The standard is useful as a repo and a CLI
 invoked from a checkout; npm is a convenience, not a dependency.

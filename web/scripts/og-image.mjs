@@ -17,6 +17,9 @@
  *
  * Flags (defaults are the tresridge identity; every value is brand data):
  *   --mark <path>   brand-mark.json   (default web/scripts/brand-mark.json)
+ *   --mark-png <path>  an already-square mark bitmap (raster form)
+ *   --mark-art <path>  brand art to crop the mark from (needs sharp, no-save)
+ *   --mark-crop l,t,w,h  square crop inside --mark-art, in source pixels
  *   --out <path>    png output        (default web/public/og-image.png)
  *   --paper/--surface/--raised/--ink/--soft/--accent/--line <hex>  token overrides
  */
@@ -51,21 +54,44 @@ const SOFT = flag('--soft') || '#98a2b3'
 const A = flag('--accent') || '#6d8cff'
 const LINE = flag('--line') || '#2a3140'
 
-// The authored seal (adopt-icons.mjs writes it). Absent -> no mark, card still renders.
+// The mark on the card, in one of two honest forms. Raster (`--mark-png`) uses
+// the brand art itself, exact for gradients or a two-tone palette that one ink
+// trace cannot carry. Vector uses the authored seal adopt-icons.mjs writes.
+// Absent -> no mark; the card still renders.
 const markPath = path.resolve(flag('--mark') || path.join(HERE, 'brand-mark.json'))
+// Raster mark, two ways, both reproducible from committed files:
+//   --mark-png <png>                       an already-square mark bitmap
+//   --mark-art <img> --mark-crop l,t,w,h   crop a square straight out of the
+//                                          brand art (needs sharp, no-save)
+const markPng = flag('--mark-png') ? path.resolve(flag('--mark-png')) : null
+const artPath = flag('--mark-art') ? path.resolve(flag('--mark-art')) : null
+const cropArg = flag('--mark-crop')
 let markEls = ''
-let markAccent = A
-if (fs.existsSync(markPath)) {
+let markIsRaster = false
+if (markPng && fs.existsSync(markPng)) {
+  const b64 = fs.readFileSync(markPng).toString('base64')
+  const raw = path.extname(markPng).slice(1).toLowerCase()
+  const mime = raw === 'jpg' ? 'jpeg' : raw
+  markIsRaster = true
+  markEls = `<image href="data:image/${mime};base64,${b64}" x="120" y="170" width="112" height="112" preserveAspectRatio="xMidYMid meet"/>`
+} else if (artPath && cropArg && fs.existsSync(artPath)) {
+  const [left, top, width, height] = cropArg.split(',').map(Number)
+  if (![left, top, width, height].every(Number.isFinite)) throw new Error(`--mark-crop wants l,t,w,h - got "${cropArg}"`)
+  const sharp = require('sharp')
+  const buf = await sharp(artPath).extract({ left, top, width, height }).resize(224, 224).png({ compressionLevel: 9 }).toBuffer()
+  markIsRaster = true
+  markEls = `<image href="data:image/png;base64,${buf.toString('base64')}" x="120" y="170" width="112" height="112" preserveAspectRatio="xMidYMid meet"/>`
+} else if (fs.existsSync(markPath)) {
   const mark = JSON.parse(fs.readFileSync(markPath, 'utf8'))
-  markAccent = mark.colors?.accent || A
+  const markAccent = mark.colors?.accent || A
   const t = mark.transform || { ox: 0, oy: 0, scale: 1 }
   const iris = mark.iris?.raw || {}
   const inner = (mark.paths || []).map((d) => `<path d="${d}" fill="${mark.colors?.ink || INK}" fill-rule="evenodd"/>`).join('')
   markEls = `<g transform="translate(120,170) scale(1.75) translate(${-(t.ox)},${-(t.oy)}) scale(${1 / (t.scale || 1)})">
-    ${inner}
-    <circle cx="${iris.cx}" cy="${iris.cy}" r="${iris.midRadius}" fill="none" stroke="${markAccent}" stroke-width="${iris.thickness}"/>
-    <rect x="${iris.cx - iris.tickHalfLen}" y="${iris.cy - iris.tickHalfWidth}" width="${iris.tickHalfLen * 2}" height="${iris.tickHalfWidth * 2}" rx="${iris.tickHalfWidth}" fill="${markAccent}"/>
-  </g>`
+      ${inner}
+      <circle cx="${iris.cx}" cy="${iris.cy}" r="${iris.midRadius}" fill="none" stroke="${markAccent}" stroke-width="${iris.thickness}"/>
+      <rect x="${iris.cx - iris.tickHalfLen}" y="${iris.cy - iris.tickHalfWidth}" width="${iris.tickHalfLen * 2}" height="${iris.tickHalfWidth * 2}" rx="${iris.tickHalfWidth}" fill="${markAccent}"/>
+    </g>`
 }
 
 const resolveTtf = (name) =>
@@ -76,9 +102,9 @@ const svg = `
   <rect width="1200" height="630" fill="${P}"/>
   <rect width="1200" height="8" fill="${A}"/>
   <rect x="60" y="90" width="1080" height="450" rx="16" fill="${S}" stroke="${LINE}" stroke-width="2"/>
-  <g transform="translate(120,170)">
+  ${markIsRaster ? '' : `<g transform="translate(120,170)">
     <rect x="0" y="0" width="112" height="112" rx="24" fill="${RAISED}" stroke="${LINE}" stroke-width="2"/>
-  </g>
+  </g>`}
   ${markEls}
   <text x="270" y="196" font-family="DejaVu Sans" font-size="72" font-weight="bold" fill="${INK}">${siteName}</text>
   <text x="270" y="246" font-family="DejaVu Sans" font-size="26" fill="${SOFT}">${tagline}</text>

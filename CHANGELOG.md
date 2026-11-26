@@ -4,7 +4,10 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.0] - 2026-11-26
+
+The first registry cut, published to npm. `npx tresridge` resolves from any machine, and the
+package page is [npmjs.com/package/tresridge](https://www.npmjs.com/package/tresridge).
 
 ### The silent-pass class: unreadable bytes and duplicate identities
 
@@ -41,11 +44,11 @@ place.
 Also: `test/cli.mjs` asserted a literal `13 refusal codes`, which failed on the
 15th. It now derives the count from `spec/refusals.json` - the drift this repo's
 own gates exist to refuse, caught in the gate itself. README and docs no longer
-advertise `npx tresridge` as the working path while the package is unpublished;
-the checkout form (`node bin/cli.mjs`) is primary and the npx form is marked as
-the post-publish one.
+advertise `npx tresridge` as the working path before the cut landed; the checkout
+form (`node bin/cli.mjs`) was primary until publish, and the npx form is now the
+front door.
 
-  ### A tree too big for the heap is refused, not crashed
+### A tree too big for the heap is refused, not crashed
 
   The record-count ceiling was calibrated on synthetic 2.4KB records and got real
   trees wrong: synmergia records cost 3.5-4.0KB each, so the old 1.5M ceiling
@@ -71,7 +74,7 @@ the post-publish one.
   - Both coefficients are pinned by test - 10% drift in either fails the suite -
     and `TRES_MAX_RECORDS` remains available as an explicit count cap.
 
-  ### The pack surface replaces profiles
+### The pack surface replaces profiles
 
 `profiles/` is gone. A pack is a directory with a `pack.json` manifest, an entry
 module, and its own refusals, so it can declare what it requires and carry a
@@ -92,13 +95,11 @@ had - `godot/id-required-when-prefixed`, a violation when a family declares an
 under the profile can fail under the pack. That is the intended direction: the
 pack is where a host's law gets teeth.
 
-## [0.9.0] - 2026-11-20
-
-The first registry cut. Everything below landed after 0.1.0 and before the
-package reached npm: the enforcement layer that makes the spec checkable, the
-site rig, the measured-numbers discipline, and the silent-pass class of fixes.
-0.9.0 is the last of the manual lane - a human runs `npm publish` from a clean
-`main`, and the tag-driven OIDC ladder takes over at 1.0.0.
+The cut below landed after 0.1.0 and before the package reached npm: the enforcement layer
+that makes the spec checkable, the site rig, the measured-numbers discipline, and the
+silent-pass class of fixes. 0.9.0 is the last of the manual lane - a human ran `npm publish`
+for this one, and the tag-driven OIDC ladder takes over at 1.0.0, which is why this tarball
+carries no provenance attestation.
 
 ### The ship lane: the first publish is scripted, not typed
 

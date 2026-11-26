@@ -87,6 +87,26 @@ family membership: the rig is `coreforge`, the tool is ours.
 - The reader is host-neutral: `src/tres.mjs` knows nothing about any particular game's
   vocabulary. Do not put a rule in the standard that only one host can satisfy.
 - Zero runtime dependencies. Node ESM. Exit codes 0/1/2.
+- **Brand art is one master, and every mark derives from it.** `web/public/og-image-alt.jpg`
+  is the art master. `web/public/icon.svg` and `docs/icon.svg` are byte-identical to each
+  other, and both embed the master's mark as a base64 PNG rather than a vector trace - so
+  the shipped icon is a raster and will not scale past its 128px source. The four PNG
+  favicons are rendered from that same mark. `npm run og` redraws the social card,
+  cropping the mark from the master (`--mark-art` + `--mark-crop l,t,w,h`), so the
+  card is reproducible from committed bytes - check `sha256sum` before installing a
+  regenerated card. `node web/scripts/adopt-icons.mjs` is the *vector* pipeline
+  (potrace trace + iris geometry); it does **not** reproduce the shipped raster icon,
+  and its accent mask is hardcoded to a blue hue so `--accent` only sets paint, not
+  geometry - see coreforge#76 before trusting it for a warm accent. Those scripts need
+  build-local helpers (`sharp`, `@resvg/resvg-js`, `dejavu-fonts-ttf`) installed with
+  `npm i --no-save` **in one command** (a second no-save install prunes the first);
+  none of them touch `package.json` or the lockfile.
+- **Copy on the site is measured, never remembered.** Every number on the landing page
+  (55 families / 1097 records / 57 inferred / 16 needing declaration) comes from
+  `doctor --json` against the real consumer tree. Rendered claims are re-derived, not typed:
+  the verb list is five (`lint`, `graph`, `doctor`, `rules`, `lint-packs`) and the edge kind
+  list is five (`ref`, `refs`, `nested`, `virtual`, `literal`). Check `bin/cli.mjs --help`
+  and `spec/SPEC.md` section 5 before editing either.
 - Generated files never travel: `node_modules/`, `*.tgz`.
 
 ## Release
