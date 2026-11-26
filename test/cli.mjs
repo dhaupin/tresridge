@@ -204,7 +204,72 @@ try {
   }
 
 
-  // -- exit 2: usage ---------------------------------------------------------
+    // A field the declaration ALREADY names is an ANSWERED probable row: it must leave
+    // the on-ramp list, or the list never shrinks and adopting the tool never converges.
+    // The pair below is the proof: identical tree, identical inference, and the ONLY
+    // difference is whether a declaration answers the row.
+    {
+      const files = {
+        'species/sp_1.tres': 'script_class="SpeciesData"\nid = "sp_1"\n',
+        'fallacies/fal_1.tres': 'script_class="FallacyData"\nid = "fal_1"\nrels = [{\n"to": "sp_1"\n}]\n',
+      };
+      const decl = JSON.stringify({
+        schemaVersion: 1,
+        families: [{ key: 'species' }, { key: 'fallacies' }],
+        edges: [{ family: 'fallacies', field: 'rels.to', target: 'species', kind: 'nested' }],
+      });
+
+      const bare = make(files);
+      const before = JSON.parse(cli(['graph', bare, '--json'], bare).out);
+      check('an unanswered probable field IS offered',
+        (before.residue.probable || []).some((x) => x.field === 'rels.to'),
+        JSON.stringify(before.residue.probable));
+
+      const answered = make({ ...files, 'relations.json': decl });
+      const after = JSON.parse(cli(['graph', answered, '--json'], answered).out);
+      check('a declared probable field leaves the on-ramp list',
+        !(after.residue.probable || []).some((x) => x.field === 'rels.to'),
+        JSON.stringify(after.residue.probable));
+    }
+
+    // The filter must NOT feed the drift gate: a declared probable field is the ANSWER
+    // to a residue row, so the row has to survive into the diff for the exemption to
+    // apply. Filtering the diff's input once reported 20 phantom removals.
+    {
+      const d = make({
+        'species/sp_1.tres': 'script_class="SpeciesData"\nid = "sp_1"\n',
+        'fallacies/fal_1.tres': 'script_class="FallacyData"\nid = "fal_1"\nrels = [{\n"to": "sp_1"\n}]\n',
+      });
+      const decl = join(d, 'relations.json');
+      writeFileSync(decl, JSON.stringify({
+        schemaVersion: 1,
+        families: [{ key: 'species' }, { key: 'fallacies' }],
+        edges: [{ family: 'fallacies', field: 'rels.to', target: 'species', kind: 'nested' }],
+      }));
+      const r = cli(['graph', d, '--against', decl, '--json'], d);
+      const diff = JSON.parse(r.out);
+      check('a declared probable field is not reported as removed drift',
+        diff.removed.length === 0, JSON.stringify(diff.removed));
+      check('the drift gate is quiet for a correct probable declaration',
+        r.code === 0, `${r.code}: ${r.out.trim()}`);
+    }
+
+    // A nested key whose value is itself an array/dict is a CONTAINER: its quoted keys
+    // are structure, not candidate ids. Reading them invented a probable row for
+    // `hordes.waves.spawns` (whose real reference is one level deeper than this
+    // standard reads), and the row could never be answered.
+    {
+      const d = make({
+        'species/sp_1.tres': 'script_class="SpeciesData"\nid = "sp_1"\n',
+        'fallacies/fal_1.tres': 'script_class="FallacyData"\nid = "fal_1"\nwaves = [{\n"spawns": [{\n"template_id": "sp_1",\n"count": 5\n}]\n}]\n',
+      });
+      const parsed = JSON.parse(cli(['graph', d, '--json']).out);
+      check('a nested container is not probable residue',
+        !(parsed.residue.probable || []).some((x) => x.field === 'waves.spawns'),
+        JSON.stringify(parsed.residue.probable));
+    }
+
+    // -- exit 2: usage ---------------------------------------------------------
   expectCode('no arguments is a usage error', cli([]), 2);
   expectCode('unknown verb is a usage error', cli(['bogus', '/tmp']), 2);
   expectCode('missing tree is a usage error', cli(['lint', '/nope/not/here']), 2);

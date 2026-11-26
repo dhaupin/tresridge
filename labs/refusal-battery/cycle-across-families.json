@@ -1,0 +1,28 @@
+{
+  "id": "cycle-across-families",
+  "base": false,
+  "add": {
+    "npcs/npc_b.tres": "script_class=\"NpcData\"\nid = \"npc_b\"\nhome_zone_id = \"zn_haven\"\nrival_id = \"zn_haven\"\n",
+    "zones/zn_haven.tres": "script_class=\"ZoneData\"\nid = \"zn_haven\"\nrival_id = \"npc_b\"\n"
+  },
+  "extraEdges": [
+    {
+      "family": "npcs",
+      "field": "rival_id",
+      "target": "zones",
+      "kind": "ref"
+    },
+    {
+      "family": "zones",
+      "field": "rival_id",
+      "target": "npcs",
+      "kind": "ref"
+    }
+  ],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "cycle"
+    ]
+  }
+}

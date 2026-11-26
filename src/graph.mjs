@@ -20,7 +20,14 @@ function edgeValuesOf(record, field) {
   if (parts.length === 2) {
     const inner = record.nested?.get(parts[0]);
     const raw = inner ? inner.get(parts[1]) || [] : [];
-    return raw.flatMap((r) => quotedValues(r));
+    // A value that opens an array/dict is a CONTAINER, not a reference: its quoted
+    // keys (`template_id`, `count`) are structure, and reading them as candidate ids
+    // invents a probable row for a field that holds no reference at this depth.
+    // Measured on `hordes.waves.spawns`, whose real reference sits one level deeper
+    // (`waves[].spawns[].template_id`) - beyond the one-level shape this standard
+    // reads. Top-level containers are already skipped by the caller; the nested
+    // level needs the same guard.
+    return raw.flatMap((r) => (/^\s*[[{]/.test(r) ? [] : quotedValues(r)));
   }
   const raw = record.fields.get(field);
   return raw === undefined ? [] : quotedValues(raw);
@@ -245,7 +252,7 @@ export function inferFrom(tree) {
  * legitimate human refinement; a union that CONTAINS the inferred target agrees
  * with inference, and one that omits it does not.
  */
-export function diffDeclaration(inferred, declared, residue = { undeclared: [] }) {
+export function diffDeclaration(inferred, declared, residue = { undeclared: [], probable: [] }) {
   const key = (e) => `${e.family}.${String(e.field).replace(/\[\]/g, '')}`;
   const targets = (e) => new Set(Array.isArray(e.target) ? e.target : [e.target]);
   const seen = new Map((declared.edges || []).map((e) => [key(e), e]));
@@ -256,13 +263,27 @@ export function diffDeclaration(inferred, declared, residue = { undeclared: [] }
     if (!seen.has(key(e))) added.push({ family: e.family, field: e.field, target: e.target, kind: e.kind });
   }
   const inferredByKey = new Map((inferred.edges || []).map((e) => [key(e), e]));
-  // A residue field is one inference could not resolve; a human declared it.
-  // Its presence in the declaration but not the inference is the point, not drift.
-  const residueKeys = new Set((residue.undeclared || []).map(key));
+  // A residue field is one inference could not resolve; a human declared it. Its
+  // presence in the declaration but not the inference is the point, not drift. The same
+  // holds for a `probable` field: inference offered the evidence and deliberately
+  // declined to declare, so the human's declaration is the ANSWER, not a removal.
+  //
+  // The exemption is checked against the evidence, not granted on the field name alone:
+  // `probable` said the values live in these families, so a declaration that points
+  // elsewhere is drift the gate must still report. Blanket-exempting by name let
+  // `npcs.parent_zone -> npcs` pass while the evidence said `zones`.
+  const undeclaredKeys = new Set((residue.undeclared || []).map(key));
+  const probableByKey = new Map((residue.probable || []).map((r) => [key(r), r]));
+  const answersProbable = (e) => {
+    const p = probableByKey.get(key(e));
+    if (!p || e.kind === 'literal') return false;
+    const said = new Set(p.targets || []);
+    return [...targets(e)].every((t) => said.has(t));
+  };
   for (const e of declared.edges || []) {
     const i = inferredByKey.get(key(e));
     if (!i) {
-      if (residueKeys.has(key(e))) continue;
+      if (undeclaredKeys.has(key(e)) || answersProbable(e)) continue;
       // A `literal` row is a human decision about a non-reference; inference never
       // produces one, so it is never drift.
       if (e.kind === 'literal') continue;

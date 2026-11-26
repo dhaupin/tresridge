@@ -106,6 +106,35 @@ const cases = [
     extraEdges: [{ family: 'npcs', field: 'rival_id', target: 'npcs', kind: 'ref' }],
     expect: { codes: ['cycle'] },
   },
+    {
+      // Same id in two families is legal (SPEC section 3 scopes uniqueness per family).
+      // A bare-id walk read `npcs/npc_b -> zones/npc_b` as `npc_b -> npc_b` and refused a
+      // legitimate reference as a self-cycle. A cycle is the same RECORD twice.
+      id: 'cycle-same-id-across-families',
+      add: {
+        'npcs/npc_b.tres': 'script_class="NpcData"\nid = "npc_b"\nhome_zone_id = "npc_b"\n',
+        'zones/npc_b.tres': 'script_class="ZoneData"\nid = "npc_b"\n',
+      },
+      expect: { violations: [], codes: [] },
+    },
+    {
+      // The mirror: a chain that really does return to its start, across a family
+      // boundary. ONE field name is carried through every hop (`rival_id`), because a
+      // chain is a path through one relation; each family points that field at the
+      // other, so npc_b -> zn_haven -> npc_b. The old walk pinned the target family at
+      // the first hop and broke when the id belonged to the other, so this was
+      // invisible. Silence here would be the silent pass.
+      id: 'cycle-across-families',
+      add: {
+        'npcs/npc_b.tres': 'script_class="NpcData"\nid = "npc_b"\nhome_zone_id = "zn_haven"\nrival_id = "zn_haven"\n',
+        'zones/zn_haven.tres': 'script_class="ZoneData"\nid = "zn_haven"\nrival_id = "npc_b"\n',
+      },
+      extraEdges: [
+        { family: 'npcs', field: 'rival_id', target: 'zones', kind: 'ref' },
+        { family: 'zones', field: 'rival_id', target: 'npcs', kind: 'ref' },
+      ],
+      expect: { codes: ['cycle'] },
+    },
   {
     id: 'required-false-warns',
     add: { 'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = "zn_missing"\n' },
