@@ -43,7 +43,7 @@ A **family** is one directory of records bound to one schema. It is the unit tha
 | Field | Rules |
 |---|---|
 | `key` | an identifier (its directory name). MUST match its directory name (mismatch = load refuse, never silent success) |
-| `schema` | OPTIONAL. The schema identity its records declare (a `class_name`). Declaring one asserts every record carries it; a **mixed family** (the reference tree's `balance/` holds twelve) declares none, and the record's own schema stands |
+| `schema` | OPTIONAL. The schema identity its records declare (a `class_name`). Declaring one asserts every record carries it; a **mixed family** (the reference tree's `balance/` holds ten) declares none, and the record's own schema stands |
 | `idPrefix` | OPTIONAL string. The id stem (`npc_`), or empty for bare ids. When present, `filename` MUST carry it (section 3) |
 | `filename` | MUST be `id` in v1 - the filename IS the id. This is the authoring law, made checkable |
 

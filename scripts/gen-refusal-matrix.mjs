@@ -308,7 +308,12 @@ function materialize(c) {
   if (c.overrideEdges) edges = c.overrideEdges;
   const families = c.families || base.families;
   const decl = { schemaVersion: 1, families, edges };
-    if (CLEAN.virtualFamilies) decl.virtualFamilies = CLEAN.virtualFamilies;
+  // Only when the effective family set actually carries the mapped family. A case that
+  // replaces `families` would otherwise ship a mapping pointing at a family it just
+  // removed - a dangling declaration the validator rightly refuses.
+  if (CLEAN.virtualFamilies && families.some((f) => f.key === 'npcs')) {
+    decl.virtualFamilies = CLEAN.virtualFamilies;
+  }
   if (c.baselines) decl.baselines = c.baselines;
   if (c.schemaVersion !== undefined) decl.schemaVersion = c.schemaVersion;
   const declPath = join(dir, 'relations.json');

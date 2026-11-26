@@ -6,8 +6,5 @@
       "idPrefix": ""
     }
   ],
-  "edges": [],
-  "virtualFamilies": {
-    "npc": "npcs"
-  }
+  "edges": []
 }

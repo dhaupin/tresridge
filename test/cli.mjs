@@ -456,6 +456,138 @@ try {
       }
     }
 
+    // --- audit regressions: silent passes found by reading the rules, not the tests ---
+    // Each case below was a CLEAN EXIT over a tree that was not clean. They are grouped
+    // because they share one cause: a check that could not see the data reported success.
+    {
+      // A cycle is a chain, not a pair (SPEC section 7). The old rule followed one hop
+      // and looked for an immediate return, so A<->B refused while a->b->c->a passed.
+      const d = make({
+        'relations.json': JSON.stringify({
+          schemaVersion: 1,
+          families: [{ key: 'things' }],
+          edges: [{ family: 'things', field: 'next_id', kind: 'ref', target: 'things', required: true }],
+        }),
+        'things/a.tres': 'id = "a"\nnext_id = "b"\n',
+        'things/b.tres': 'id = "b"\nnext_id = "c"\n',
+        'things/c.tres': 'id = "c"\nnext_id = "a"\n',
+      });
+      const r = cli(['lint', d]);
+      expectCode('a three-node cycle exits 1', r, 1);
+      check('a three-node cycle is reported', /FAIL\s+cycle/.test(r.out), r.out.trim().split('\n').slice(0, 4).join(' | '));
+      check('the cycle is reported once, not once per node', (r.out.match(/FAIL\s+cycle/g) || []).length === 1,
+        `saw ${(r.out.match(/FAIL\s+cycle/g) || []).length}`);
+
+      // The same tree with the cycle broken must be clean: the fix must not refuse chains.
+      const ok = make({
+        'relations.json': JSON.stringify({
+          schemaVersion: 1,
+          families: [{ key: 'things' }],
+          edges: [{ family: 'things', field: 'next_id', kind: 'ref', target: 'things', required: true }],
+        }),
+        'things/a.tres': 'id = "a"\nnext_id = "b"\n',
+        'things/b.tres': 'id = "b"\nnext_id = "c"\n',
+        'things/c.tres': 'id = "c"\n',
+      });
+      expectCode('an acyclic chain of three is clean', cli(['lint', ok]), 0);
+    }
+
+    {
+      // A dict written on ONE line is the same dict. Reading keys only at line starts
+      // made `entries = [{ "item_id": "x" }]` carry no nested keys at all, so a declared
+      // `nested` edge found nothing to check and reported clean.
+      const decl = JSON.stringify({
+        schemaVersion: 1,
+        families: [{ key: 'f' }, { key: 'items' }],
+        edges: [{ family: 'f', field: 'entries.item_id', kind: 'nested', target: 'items', required: true }],
+      });
+      const oneLine = make({
+        'relations.json': decl,
+        'items/real_item.tres': 'id = "real_item"\n',
+        'f/a.tres': 'id = "a"\nentries = [{ "item_id": "does_not_exist" }]\n',
+      });
+      const r1 = cli(['lint', oneLine]);
+      expectCode('a dangling nested ref on ONE line exits 1', r1, 1);
+      check('a dangling nested ref on one line is named', /dangling-ref/.test(r1.out), r1.out.trim().split('\n').slice(0, 4).join(' | '));
+
+      const multi = make({
+        'relations.json': decl,
+        'items/real_item.tres': 'id = "real_item"\n',
+        'f/a.tres': 'id = "a"\nentries = [{\n"item_id": "does_not_exist"\n}]\n',
+      });
+      check('the multi-line form agrees with the one-line form', cli(['lint', multi]).code === 1, 'multi-line form passed');
+
+      const valid = make({
+        'relations.json': decl,
+        'items/real_item.tres': 'id = "real_item"\n',
+        'f/a.tres': 'id = "a"\nentries = [{ "item_id": "real_item" }]\n',
+      });
+      expectCode('a resolving nested ref on one line is clean', cli(['lint', valid]), 0);
+    }
+
+    {
+      // Declaration SHAPE typos that used to disable a whole rule class or crash.
+      const base = { schemaVersion: 1, families: [{ key: 'f' }], edges: [] };
+      const shape = (label, decl, want) => {
+        const d = make({ 'relations.json': JSON.stringify(decl), 'f/a.tres': 'id = "a"\n' });
+        const r = cli(['lint', d]);
+        check(`${label} is refused, not ignored`, r.code === want, `exit ${r.code}`);
+      };
+      // A string here makes every `<stem>` lookup return undefined, and an undefined
+      // mapping means "nothing to check" - so every virtual edge silently stopped
+      // checking its captures.
+      shape('virtualFamilies as a string', { ...base, virtualFamilies: 'f' }, 1);
+      shape('virtualFamilies naming an undeclared family', { ...base, virtualFamilies: { s: 'nofam' } }, 1);
+      // A string is iterable, so it was walked per character: 3 bogus findings per letter,
+      // which is 6,000 findings for a 2,000-character typo - the real problem buried under
+      // noise it generated itself. Exit code alone cannot see that, so this asserts the
+      // finding COUNT: one named refusal, not one per character.
+      {
+        const d = make({ 'relations.json': JSON.stringify({ ...base, baselines: 'nope' }), 'f/a.tres': 'id = "a"\n' });
+        const r = cli(['lint', d]);
+        check('baselines as a string exits 1', r.code === 1, `exit ${r.code}`);
+        const declLines = (r.err.match(/DECL /g) || []).length;
+        check('baselines as a string yields ONE refusal, not one per character', declLines === 1,
+          `${declLines} DECL line(s) for a 4-character string`);
+        check('the baselines refusal names the shape', /baselines MUST be an array/.test(r.err), r.err.split('\n')[0] || 'no stderr');
+      }
+      // These two threw `Cannot read properties of null` - an exit-2 stack trace where
+      // a named declaration refusal belongs.
+      shape('an edge row that is null', { ...base, edges: [null] }, 1);
+      shape('a family entry that is null', { ...base, families: [null] }, 1);
+      shape('an edge row with no family', { ...base, edges: [{ field: 'x_id', kind: 'ref', target: 'f' }] }, 1);
+      shape('an edge row with no field', { ...base, edges: [{ family: 'f', kind: 'ref', target: 'f' }] }, 1);
+      // And a well-formed declaration must still pass, or the guards are just refusals.
+      shape('a well-formed declaration', { ...base, edges: [{ family: 'f', field: 'x_id', kind: 'ref', target: 'f' }] }, 0);
+    }
+
+    {
+      // A pattern with many stems is author-supplied data, and the backtracking matcher
+      // is exponential without memoization: 8 stems against an unsatisfiable value took
+      // 5.2s for ONE value (measured), so a 100-record family hung for ~8 minutes. A
+      // declaration must never be able to make the linter stop answering.
+      const L = 40;
+      const files = { 'relations.json': JSON.stringify({
+        schemaVersion: 1,
+        families: [{ key: 'f' }],
+        edges: [{ family: 'f', field: 'ref_id', kind: 'virtual', pattern: '<s1><s2><s3><s4><s5><s6><s7><s8>' }],
+        virtualFamilies: Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((i) => [`s${i}`, 'f'])),
+      }) };
+      for (let i = 1; i <= L; i++) files[`f/${'z'.repeat(i)}.tres`] = `id = "${'z'.repeat(i)}"\n`;
+      // A lowercase tail: `idsIn` only admits lowercase-led values, so an uppercase
+      // character would remove the value from the scan entirely and test nothing.
+      files['f/rec.tres'] = `id = "rec"\nref_id = "${'z'.repeat(L)}q"\n`;
+      const d = make(files);
+      const started = Date.now();
+      const r = cli(['lint', d]);
+      const ms = Date.now() - started;
+      check('an 8-stem virtual pattern answers in under 5s', ms < 5000, `took ${ms}ms`);
+      expectCode('the unsatisfiable virtual value is still refused', r, 1);
+      check('the unsatisfiable virtual value is named', /dangling-ref/.test(r.out), 'no dangling-ref');
+    }
+
+
+
   }
 } finally {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });

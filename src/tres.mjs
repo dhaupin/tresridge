@@ -56,17 +56,62 @@ function spanDelta(line) {
  */
 function nestedKeys(raw) {
   const out = new Map();
-  let d = 0;
-  for (const line of raw.split('\n')) {
-    if (d === 1) {
-      const m = line.trim().match(/^"([a-zA-Z_][a-zA-Z0-9_]*)"\s*:\s*(.*)$/);
-      if (m) {
-        const arr = out.get(m[1]) || [];
-        arr.push(m[2].replace(/,\s*$/, '').trim());
-        out.set(m[1], arr);
-      }
+  const s = String(raw);
+  // A scanner, not a line matcher. Reading one line at a time only ever saw a key that
+  // STARTED a line, so `entries = [{ "item_id": "x" }]` - the same dict Godot writes on
+  // one line when it is short - yielded no keys at all. A declared `nested` edge then
+  // found no values and reported clean, which is the silent pass this standard exists
+  // to end. Depth counts braces only (the array wrapper is not a dict level), matching
+  // the shape the corpus uses: `entries[].item_id` is one level in.
+  let i = 0;
+  let depth = 0;
+  const readString = (from) => {
+    let k = from + 1;
+    while (k < s.length) {
+      if (s[k] === '\\') { k += 2; continue; }
+      if (s[k] === '"') return k + 1;
+      k++;
     }
-    d += dictDelta(line);
+    return s.length;
+  };
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '"') {
+      const strEnd = readString(i);
+      if (depth === 1) {
+        let j = strEnd;
+        while (j < s.length && /\s/.test(s[j])) j++;
+        if (s[j] === ':') {
+          const key = s.slice(i + 1, strEnd - 1);
+          if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+            // The value runs to the next depth-0 comma, or to the brace that closes
+            // the enclosing dict - whichever comes first.
+            let k = j + 1;
+            let inner = 0;
+            while (k < s.length) {
+              const ch = s[k];
+              if (ch === '"') { k = readString(k); continue; }
+              if (ch === '{' || ch === '[') inner++;
+              else if (ch === '}' || ch === ']') {
+                if (inner === 0) break;
+                inner--;
+              } else if (ch === ',' && inner === 0) break;
+              k++;
+            }
+            const arr = out.get(key) || [];
+            arr.push(s.slice(j + 1, k).trim());
+            out.set(key, arr);
+            i = k;
+            continue;
+          }
+        }
+      }
+      i = strEnd;
+      continue;
+    }
+    if (c === '{') depth++;
+    else if (c === '}') depth--;
+    i++;
   }
   return out;
 }

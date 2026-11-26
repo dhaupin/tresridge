@@ -98,16 +98,31 @@ export function resolvesVirtual(pattern, families, value, tree) {
   };
   // Backtracking match: a stem's length is not known a priori (`akkan_rune_chain`
   // is a stem, not `akkan`), so try every split and accept the first that resolves.
+  //
+  // Memoized on (token index, value offset). Without the memo the walk is
+  // exponential in the stem count: a pattern of eight stems against a value that no
+  // split satisfies took 5.2s for ONE value (measured), so a 100-record family was
+  // an eight-minute hang. A pattern is author-supplied declaration data, so that is
+  // a denial of service in a tool whose whole job is to refuse bad declarations
+  // cheaply. With the memo every (ti, vi) pair is settled once, so the walk is
+  // O(tokens * value^2) and the same input returns in under a millisecond.
+  const memo = new Map();
   const walk = (ti, vi) => {
     if (ti === tokens.length) return vi === value.length;
+    const key = ti * (value.length + 1) + vi;
+    const hit = memo.get(key);
+    if (hit !== undefined) return hit;
+    let ok = false;
     const t = tokens[ti];
     if (t.lit !== undefined) {
-      return value.startsWith(t.lit, vi) && walk(ti + 1, vi + t.lit.length);
+      ok = value.startsWith(t.lit, vi) && walk(ti + 1, vi + t.lit.length);
+    } else {
+      for (let end = vi + 1; end <= value.length && !ok; end++) {
+        if (stemsResolve(t.stem, value.slice(vi, end)) && walk(ti + 1, end)) ok = true;
+      }
     }
-    for (let end = vi + 1; end <= value.length; end++) {
-      if (stemsResolve(t.stem, value.slice(vi, end)) && walk(ti + 1, end)) return true;
-    }
-    return false;
+    memo.set(key, ok);
+    return ok;
   };
   return walk(0, 0);
 }
@@ -312,7 +327,7 @@ export const RULES = [
         const fam = ctx.declFamily.get(r.family);
         if (!fam) continue;
         // `schema` is OPTIONAL and advisory. A family may hold several schemas
-        // (the reference tree's `balance/` holds twelve), in which case it declares
+        // (the reference tree's `balance/` holds ten), in which case it declares
         // none and the record's own schema stands. Declaring one asserts that
         // every record in the family carries it.
         if (fam.schema && r.scriptClass && fam.schema !== r.scriptClass) {
@@ -465,6 +480,10 @@ export const RULES = [
       const out = [];
       const cycleEdges = ctx.decl.edges.filter((e) => e.kind === 'ref' && e.required !== false);
       const seen = new Set();
+      // A cycle is a CHAIN that returns to its start (SPEC section 7), not just a pair.
+      // Following one hop and looking for an immediate return caught A<->B, while
+      // a -> b -> c -> a passed silently - the longest chains, the ones hardest to see
+      // by eye, were exactly the ones this rule could not see.
       for (const e of cycleEdges) {
         const pool = ctx.byFamily.get(e.family);
         if (!pool) continue;
@@ -476,20 +495,34 @@ export const RULES = [
         const tpool = ctx.byId.get(tkey);
         if (!tpool) continue;
         for (const r of pool.values()) {
-          const raw = r.fields.get(e.field);
-          if (!raw) continue;
-          const next = idsIn(raw)[0];
-          if (!next) continue;
-          const target = tpool.get(next);
-          if (!target) continue;
-          const back = target.fields.get(e.field);
-          if (back && idsIn(back)[0] === r.id) {
-            // Report each unordered pair once: A<->B is one cycle, not two.
-            const pair = [r.id, next].sort().join('<->');
-            if (seen.has(pair)) continue;
-            seen.add(pair);
-            out.push({ code: 'cycle', record: r.file, field: e.field, detail: `${r.id} <-> ${next} via ${e.field}` });
+          const first = idsIn(r.fields.get(e.field) || '')[0];
+          if (!first || !tpool.has(first)) continue;
+          // Walk the chain, remembering only THIS walk's ids: a chain that returns to
+          // one of them closes a cycle, and a chain that merely joins a cycle already
+          // reported is not re-reported from its middle.
+          const path = [r.id];
+          const onPath = new Set(path);
+          let cursor = first;
+          let closed = false;
+          // Bounded by the record count: any longer walk must revisit an id, and a
+          // revisit is the cycle. Keeps a pathological chain finite.
+          for (let step = 0; step <= ctx.tree.records.length; step++) {
+            if (onPath.has(cursor)) { closed = true; break; }
+            path.push(cursor);
+            onPath.add(cursor);
+            const rec = tpool.get(cursor);
+            const next = rec ? idsIn(rec.fields.get(e.field) || '')[0] : undefined;
+            if (!next || !tpool.has(next)) break;
+            cursor = next;
           }
+          if (!closed) continue;
+          // One report per cycle, whichever record the walk started from: key the ring
+          // by its sorted ids so a->b->c->a and b->c->a->b name one cycle.
+          const ring = path.slice(path.indexOf(cursor));
+          const key = [...ring].sort().join('<->');
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push({ code: 'cycle', record: r.file, field: e.field, detail: `${[...ring, ring[0]].join(' -> ')} via ${e.field}` });
         }
       }
       return out;
