@@ -5,8 +5,27 @@
 // human (or an agent) to accept or correct; the lint never calls this.
 
 import { readTree } from './tres.mjs';
+import { quotedValues } from './rules.mjs';
 
 /** The resolution rule: last family token in the field name, pluralised. */
+/**
+ * The quoted values a candidate field carries, for the widened-residue scan.
+ *
+ * A top-level field reads its own raw text; a nested path (`edges.to`) reads the
+ * level-1 inner key. Values are read with the same `quotedValues` reader the lint
+ * uses, so "looks like an id" means the same thing to both.
+ */
+function edgeValuesOf(record, field) {
+  const parts = field.split('.');
+  if (parts.length === 2) {
+    const inner = record.nested?.get(parts[0]);
+    const raw = inner ? inner.get(parts[1]) || [] : [];
+    return raw.flatMap((r) => quotedValues(r));
+  }
+  const raw = record.fields.get(field);
+  return raw === undefined ? [] : quotedValues(raw);
+}
+
 export function targetFor(field, familyKeys) {
   const base = field.replace(/_ids?$/, '');
   const tokens = base.split('_');
@@ -33,6 +52,19 @@ export function targetFor(field, familyKeys) {
  */
 export function inferDeclaration(tree) {
   const familyKeys = new Set(tree.families.map((f) => f.key));
+
+  // Every id the tree carries, per family. A field that names no family token and
+  // carries no `_id` suffix is invisible to `targetFor`, but its VALUES can still be
+  // ids that live in a sibling family - which is what a reference looks like when the
+  // host named it `to`, `related`, or `cites` (issue #22). This pool is what lets the
+  // on-ramp say "these look like references" instead of "0 edges, nothing to declare".
+  const idPool = new Map();
+  for (const r of tree.records) {
+    if (r.unparseable) continue;
+    if (!idPool.has(r.family)) idPool.set(r.family, new Set());
+    idPool.get(r.family).add(r.id);
+  }
+  const probable = new Map();
 
   // A family declares a schema only when ALL its records share one. A mixed
   // family (`balance/`) declares none - the record's own schema stands.
@@ -83,6 +115,45 @@ export function inferDeclaration(tree) {
       seen.add(id);
       edges.push({ family: r.family, field, target, kind, required: true });
     }
+
+    // Widened residue: a field the naming rule cannot see, but whose values ARE ids
+    // from another family. Reported as `probable`, never as an edge - inference is
+    // not the contract (SPEC section 5), so a guess must never become a declaration
+    // row. It only has to be VISIBLE, so the on-ramp is not a blank page.
+    //
+    // The row carries its own EVIDENCE (`distinct`, `matched`, `ratio`) rather than a
+    // bare count, because a bare count cannot be audited. Both sides are counted over
+    // the field's DISTINCT values: counting occurrences on one side and distinct values
+    // on the other produced a ratio of 2.00 (measured on `balance.items_by_role`),
+    // which is not a share of anything. Measured on the reference deployment, real
+    // references score 0.79-1.00 (required_class 18/18, unlocks 214/214) and a
+    // coincidence scores 0.15 (dialogues.nodes.choices: 16 of 108 values).
+    for (const { field, nested } of candidates) {
+      const leaf = field.split('.').pop();
+      if (/_ids?$/.test(leaf)) continue; // already handled above
+      // A TOP-LEVEL `id` is the record's own identity (SPEC section 3: the filename is
+      // the id), never a reference. Two families holding the same id is a normal
+      // collision, and reporting it invents 6 references on the reference deployment.
+      // A NESTED `id` (`rewards[].id`) is a different thing and stays a candidate.
+      if (!nested && field === 'id') continue;
+      // A top-level field holding an array-of-dicts is the CONTAINER, not the
+      // reference: its inner keys are the candidates. Reporting both names one
+      // reference twice and doubles the count a human reads.
+      if (!nested && r.nested?.has(field)) continue;
+      const values = edgeValuesOf(r, field);
+      if (!values.length) continue;
+      const id = `${r.family}.${field}`;
+      if (!probable.has(id)) probable.set(id, { values: new Set(), matched: new Set(), targets: new Set() });
+      const acc = probable.get(id);
+      for (const v of values) {
+        if (!v) continue;
+        acc.values.add(v);
+        for (const [fam, pool] of idPool) {
+          if (fam === r.family) continue;
+          if (pool.has(v)) { acc.matched.add(v); acc.targets.add(fam); break; }
+        }
+      }
+    }
   }
 
   edges.sort((a, b) => (a.family + a.field).localeCompare(b.family + b.field));
@@ -95,6 +166,25 @@ export function inferDeclaration(tree) {
         const i = k.indexOf('.');
         return { family: k.slice(0, i), field: k.slice(i + 1), count };
     }).sort((a, b) => b.count - a.count),
+
+    // Fields whose values look like ids from another family, but whose NAME gives the
+    // rule nothing to key on. A human decides whether these are edges (`ref`/`refs`/
+    // `nested`) or `literal`; nothing here is auto-declared.
+    probable: [...probable.entries()].filter(([, v]) => v.matched.size > 0).map(([k, v]) => {
+        const i = k.indexOf('.');
+        // `ratio` is the share of DISTINCT values that name an id elsewhere. It is the
+        // number a human can audit: 1.00 means every value is somebody's id, 0.04 means
+        // one value coincidentally matches. Sorted by matched DESC, then ratio DESC, so
+        // the strongest evidence is read first.
+        const distinct = v.values.size;
+        const matched = v.matched.size;
+        return {
+          family: k.slice(0, i), field: k.slice(i + 1),
+          count: matched, distinct,
+          ratio: distinct ? Math.round((matched / distinct) * 100) / 100 : 0,
+          targets: [...v.targets].sort(),
+        };
+    }).sort((a, b) => b.count - a.count || b.ratio - a.ratio),
   };
   return { declaration, residue };
 }

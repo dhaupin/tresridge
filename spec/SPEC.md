@@ -43,7 +43,7 @@ A **family** is one directory of records bound to one schema. It is the unit tha
 | Field | Rules |
 |---|---|
 | `key` | an identifier (its directory name). MUST match its directory name (mismatch = load refuse, never silent success) |
-| `schema` | OPTIONAL. The schema identity its records declare (a `class_name`). Declaring one asserts every record carries it; a **mixed family** (the reference tree's `balance/` holds twelve) declares none, and the record's own schema stands |
+| `schema` | OPTIONAL. The schema identity its records declare (a `class_name`). Declaring one asserts every record carries it; a **mixed family** (the reference tree's `balance/` holds ten) declares none, and the record's own schema stands |
 | `idPrefix` | OPTIONAL string. The id stem (`npc_`), or empty for bare ids. When present, `filename` MUST carry it (section 3) |
 | `filename` | MUST be `id` in v1 - the filename IS the id. This is the authoring law, made checkable |
 
@@ -159,6 +159,15 @@ decisions rather than inference: a `literal` row (never inferred), and a row for
 The declaration itself is validated by the same rule set as the tree (`validateDeclaration`), so a malformed declaration refuses before a single record is read.
 
 The `graph` verb is the adoption on-ramp: it DERIVES `relations.json` from an existing tree, so a host starts from truth.
+
+**Residue has two classes, and only one of them is inferred from field names.**
+
+- `undeclared` - a field that ENDS `_id`/`_ids` (or is a nested `*.item_id`) but whose name carries no family token, so the naming rule cannot pick a target. It is a reference by shape; a human names the target.
+- `probable` - a field the naming rule cannot see at all, whose VALUES are ids carried by another family. It exists because a host that names its references `edges[].to`, `related`, or `cites` would otherwise get "0 edges, 0 residue" over a tree full of references - the on-ramp reports success while the graph is invisible.
+
+A `probable` row is **evidence, not a verdict**, and it carries the evidence: `count` (distinct values that name an id elsewhere), `distinct` (distinct values in the field), and `ratio` (`count / distinct`). A host reads the ratio and decides. Measured on the reference deployment, real references score 0.79-1.00 and a coincidence scores 0.04 - one enum value that happens to equal an id in a small family. Nothing in `probable` is ever written into a declaration: inference seeds, a human decides, and the lint never infers at check time.
+
+A top-level `id` is the record's own identity (section 3), never a reference, so it is never `probable`; a nested `rewards[].id` is a real reference and is.
 
 **Exit contract: `0` clean, `1` violations, `2` usage.** The three are disjoint and a host may
 branch on them:

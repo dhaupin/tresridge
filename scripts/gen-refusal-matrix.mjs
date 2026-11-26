@@ -73,6 +73,21 @@ const cases = [
     expect: { violations: [] },
   },
   {
+    id: 'nonid-ref-value',
+    // A value that is not id-shaped can never resolve, so it must REFUSE rather than
+    // vanish. Before this case, the reader matched only id characters inside the
+    // quotes, so `"O'Brien"` produced no value at all and the tree linted clean (#20).
+    add: { 'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = "O\'Brien"\n' },
+    expect: { codes: ['dangling-ref'] },
+  },
+  {
+    id: 'empty-ref-value',
+    // An empty string is Godot's "no reference": it names no target, so it is not a
+    // dangle. This is the one exemption in the non-id refusal.
+    add: { 'npcs/npc_smith.tres': 'script_class="NpcData"\nid = "npc_smith"\nhome_zone_id = ""\n' },
+    expect: { violations: [] },
+  },
+  {
     id: 'schema-mismatch',
     add: { 'npcs/npc_smith.tres': 'script_class="WrongData"\nid = "npc_smith"\nhome_zone_id = "zn_haven"\n' },
     expect: { codes: ['schema-mismatch'] },
@@ -308,7 +323,12 @@ function materialize(c) {
   if (c.overrideEdges) edges = c.overrideEdges;
   const families = c.families || base.families;
   const decl = { schemaVersion: 1, families, edges };
-    if (CLEAN.virtualFamilies) decl.virtualFamilies = CLEAN.virtualFamilies;
+  // Only when the effective family set actually carries the mapped family. A case that
+  // replaces `families` would otherwise ship a mapping pointing at a family it just
+  // removed - a dangling declaration the validator rightly refuses.
+  if (CLEAN.virtualFamilies && families.some((f) => f.key === 'npcs')) {
+    decl.virtualFamilies = CLEAN.virtualFamilies;
+  }
   if (c.baselines) decl.baselines = c.baselines;
   if (c.schemaVersion !== undefined) decl.schemaVersion = c.schemaVersion;
   const declPath = join(dir, 'relations.json');

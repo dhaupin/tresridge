@@ -1,0 +1,14 @@
+{
+  "id": "nonid-ref-value",
+  "base": false,
+  "add": {
+    "npcs/npc_smith.tres": "script_class=\"NpcData\"\nid = \"npc_smith\"\nhome_zone_id = \"O'Brien\"\n"
+  },
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "codes": [
+      "dangling-ref"
+    ]
+  }
+}

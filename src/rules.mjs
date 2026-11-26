@@ -30,21 +30,37 @@ export const SCHEMA_VERSION = 1;
  * kind: a field can end `_id` and hold a non-id).
  */
 export function idsIn(raw) {
+  return quotedValues(raw).filter((v) => ID_SHAPE.test(v));
+}
+
+/**
+ * Non-id values in an `_id`-shaped field: a `literal` finding.
+ *
+ * Reads the same quoted runs `idsIn` does, so the two can never disagree about
+ * which values exist - only about which ones are ids.
+ */
+export function nonIdValues(raw) {
+  return quotedValues(raw).filter((v) => !ID_SHAPE.test(v));
+}
+
+/**
+ * Every quoted run in a raw value text, whatever it contains.
+ *
+ * The earlier reader matched only `[A-Za-z0-9_.:-]+` INSIDE the quotes, so a value
+ * carrying an apostrophe, a space, or a slash matched nothing at all: `to = "Rook's
+ * Own"` produced zero values, the edge count fell to zero, and the lint reported a
+ * clean tree. A reader that cannot see a value is not a reader that found nothing -
+ * it is a reader that was never handed the bytes. Matching any run inside the quotes
+ * puts the value in front of the checker, which is what lets the checker refuse it.
+ */
+export function quotedValues(raw) {
   const out = [];
-  for (const m of String(raw).matchAll(/"([A-Za-z0-9_.:-]+)"/g)) {
-    if (/^[a-z0-9][a-z0-9_.:-]*$/.test(m[1])) out.push(m[1]);
-  }
+  for (const m of String(raw).matchAll(/"([^"]*)"/g)) out.push(m[1]);
   return out;
 }
 
-/** Non-id (PascalCase-led) values in an `_id`-shaped field: a `literal` finding. */
-export function nonIdValues(raw) {
-  const out = [];
-  for (const m of String(raw).matchAll(/"([A-Za-z0-9_.:-]+)"/g)) {
-    if (!/^[a-z0-9][a-z0-9_.:-]*$/.test(m[1])) out.push(m[1]);
-  }
-  return out;
-}
+/** An id is lowercase-led and made of id characters (SPEC section 3). */
+const ID_SHAPE = /^[a-z0-9][a-z0-9_.:-]*$/;
 
 /**
  * Resolve one edge reference against the tree.
@@ -98,16 +114,31 @@ export function resolvesVirtual(pattern, families, value, tree) {
   };
   // Backtracking match: a stem's length is not known a priori (`akkan_rune_chain`
   // is a stem, not `akkan`), so try every split and accept the first that resolves.
+  //
+  // Memoized on (token index, value offset). Without the memo the walk is
+  // exponential in the stem count: a pattern of eight stems against a value that no
+  // split satisfies took 5.2s for ONE value (measured), so a 100-record family was
+  // an eight-minute hang. A pattern is author-supplied declaration data, so that is
+  // a denial of service in a tool whose whole job is to refuse bad declarations
+  // cheaply. With the memo every (ti, vi) pair is settled once, so the walk is
+  // O(tokens * value^2) and the same input returns in under a millisecond.
+  const memo = new Map();
   const walk = (ti, vi) => {
     if (ti === tokens.length) return vi === value.length;
+    const key = ti * (value.length + 1) + vi;
+    const hit = memo.get(key);
+    if (hit !== undefined) return hit;
+    let ok = false;
     const t = tokens[ti];
     if (t.lit !== undefined) {
-      return value.startsWith(t.lit, vi) && walk(ti + 1, vi + t.lit.length);
+      ok = value.startsWith(t.lit, vi) && walk(ti + 1, vi + t.lit.length);
+    } else {
+      for (let end = vi + 1; end <= value.length && !ok; end++) {
+        if (stemsResolve(t.stem, value.slice(vi, end)) && walk(ti + 1, end)) ok = true;
+      }
     }
-    for (let end = vi + 1; end <= value.length; end++) {
-      if (stemsResolve(t.stem, value.slice(vi, end)) && walk(ti + 1, end)) return true;
-    }
-    return false;
+    memo.set(key, ok);
+    return ok;
   };
   return walk(0, 0);
 }
@@ -217,6 +248,14 @@ export const RULES = [
       const out = [];
       const codes = new Set(ctx.vocabulary || []);
       for (const e of ctx.decl.edges || []) {
+        // An edge row whose own `family` is not declared checks nothing: the row is
+        // filed under a key no record answers to, so every value it would judge goes
+        // unseen. The misspelling then surfaces as a MISLEADING `undeclared-edge` on
+        // the real field - or as nothing at all when the field is not `_id`-shaped.
+        // Refuse the row, not its symptom.
+        if (!ctx.knownFamilies.has(e?.family)) {
+          out.push({ code: 'unknown-rule', record: `${e?.family}.${e?.field}`, detail: `edge row names family ${JSON.stringify(e?.family)}, which is not declared - the row checks nothing` });
+        }
         if (!KINDS.includes(e?.kind)) {
           out.push({ code: 'unknown-rule', record: `${e?.family}.${e?.field}`, detail: `edge kind MUST be one of ${KINDS.join('/')}: ${JSON.stringify(e?.kind)}` });
         }
@@ -312,7 +351,7 @@ export const RULES = [
         const fam = ctx.declFamily.get(r.family);
         if (!fam) continue;
         // `schema` is OPTIONAL and advisory. A family may hold several schemas
-        // (the reference tree's `balance/` holds twelve), in which case it declares
+        // (the reference tree's `balance/` holds ten), in which case it declares
         // none and the record's own schema stands. Declaring one asserts that
         // every record in the family carries it.
         if (fam.schema && r.scriptClass && fam.schema !== r.scriptClass) {
@@ -438,19 +477,35 @@ export const RULES = [
           // the real problem under noise.
           if (edge.kind === 'virtual' && !edge.pattern) continue;
           for (const raw of edgeValues(r, edge)) {
-            for (const v of idsIn(raw)) {
-              const ok = edge.kind === 'virtual'
-                ? resolvesVirtual(edge.pattern, ctx.decl.virtualFamilies, v, ctx.tree)
-                : resolves(edge.kind, edge.target, v, ctx.tree);
+            // Every quoted value is judged, not only the id-shaped ones. A value that
+            // is not id-shaped can never resolve, so skipping it is a silent pass
+            // dressed as a clean tree: `to = "Rook's Own"` used to yield zero values
+            // and the edge count fell to zero with it. An EMPTY string is the one
+            // exemption - Godot writes it for "no reference", so it names no target
+            // rather than a target that is missing.
+            for (const v of quotedValues(raw)) {
+              if (!v) continue;
+              const idShaped = ID_SHAPE.test(v);
+              // `literal` is the honesty kind (SPEC section 5): the field is declared
+              // and never resolved, so a non-id value there is the POINT, not a
+              // refusal. Every other kind must be able to name a target, and a
+              // non-id-shaped value can never do that.
+              const ok = edge.kind === 'literal' ? true
+                : !idShaped ? false
+                  : edge.kind === 'virtual'
+                    ? resolvesVirtual(edge.pattern, ctx.decl.virtualFamilies, v, ctx.tree)
+                    : resolves(edge.kind, edge.target, v, ctx.tree);
               if (!ok) {
-                const row = { code: 'dangling-ref', record: r.file, field: edge.field, target: v, detail: edge.kind === 'virtual'
-                  ? `virtual edge ${r.family}.${edge.field} pattern "${edge.pattern}", "${v}" does not match or its stems do not resolve`
-                  : `edge ${r.family}.${edge.field} -> ${edge.target}, "${v}" not found` };
-              // `required: false` downgrades to a warning - acknowledged, not asserted.
-              if (edge.required === false) row.severity = 'warning';
-              out.push(row);
+                const row = { code: 'dangling-ref', record: r.file, field: edge.field, target: v, detail: !idShaped
+                  ? `edge ${r.family}.${edge.field} -> ${edge.target}, "${v}" is not id-shaped so it can never resolve (declare the field \`literal\` if it is not a reference)`
+                  : edge.kind === 'virtual'
+                    ? `virtual edge ${r.family}.${edge.field} pattern "${edge.pattern}", "${v}" does not match or its stems do not resolve`
+                    : `edge ${r.family}.${edge.field} -> ${edge.target}, "${v}" not found` };
+                // `required: false` downgrades to a warning - acknowledged, not asserted.
+                if (edge.required === false) row.severity = 'warning';
+                out.push(row);
+              }
             }
-          }
           }
         }
       }
@@ -465,6 +520,10 @@ export const RULES = [
       const out = [];
       const cycleEdges = ctx.decl.edges.filter((e) => e.kind === 'ref' && e.required !== false);
       const seen = new Set();
+      // A cycle is a CHAIN that returns to its start (SPEC section 7), not just a pair.
+      // Following one hop and looking for an immediate return caught A<->B, while
+      // a -> b -> c -> a passed silently - the longest chains, the ones hardest to see
+      // by eye, were exactly the ones this rule could not see.
       for (const e of cycleEdges) {
         const pool = ctx.byFamily.get(e.family);
         if (!pool) continue;
@@ -476,20 +535,34 @@ export const RULES = [
         const tpool = ctx.byId.get(tkey);
         if (!tpool) continue;
         for (const r of pool.values()) {
-          const raw = r.fields.get(e.field);
-          if (!raw) continue;
-          const next = idsIn(raw)[0];
-          if (!next) continue;
-          const target = tpool.get(next);
-          if (!target) continue;
-          const back = target.fields.get(e.field);
-          if (back && idsIn(back)[0] === r.id) {
-            // Report each unordered pair once: A<->B is one cycle, not two.
-            const pair = [r.id, next].sort().join('<->');
-            if (seen.has(pair)) continue;
-            seen.add(pair);
-            out.push({ code: 'cycle', record: r.file, field: e.field, detail: `${r.id} <-> ${next} via ${e.field}` });
+          const first = idsIn(r.fields.get(e.field) || '')[0];
+          if (!first || !tpool.has(first)) continue;
+          // Walk the chain, remembering only THIS walk's ids: a chain that returns to
+          // one of them closes a cycle, and a chain that merely joins a cycle already
+          // reported is not re-reported from its middle.
+          const path = [r.id];
+          const onPath = new Set(path);
+          let cursor = first;
+          let closed = false;
+          // Bounded by the record count: any longer walk must revisit an id, and a
+          // revisit is the cycle. Keeps a pathological chain finite.
+          for (let step = 0; step <= ctx.tree.records.length; step++) {
+            if (onPath.has(cursor)) { closed = true; break; }
+            path.push(cursor);
+            onPath.add(cursor);
+            const rec = tpool.get(cursor);
+            const next = rec ? idsIn(rec.fields.get(e.field) || '')[0] : undefined;
+            if (!next || !tpool.has(next)) break;
+            cursor = next;
           }
+          if (!closed) continue;
+          // One report per cycle, whichever record the walk started from: key the ring
+          // by its sorted ids so a->b->c->a and b->c->a->b name one cycle.
+          const ring = path.slice(path.indexOf(cursor));
+          const key = [...ring].sort().join('<->');
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push({ code: 'cycle', record: r.file, field: e.field, detail: `${[...ring, ring[0]].join(' -> ')} via ${e.field}` });
         }
       }
       return out;
@@ -641,7 +714,10 @@ export function runRules(tree, decl, opts = {}) {
     if (r.unparseable) continue;
     for (const edge of decl.edges) {
       if (edge.family !== r.family) continue;
-      for (const raw of edgeValues(r, edge)) edgeCount += idsIn(raw).length;
+      // Count what the checker JUDGED, not what it could parse as an id: a value
+      // refused as non-id-shaped is still a reference instance, and a count that
+      // omits it reports a smaller tree than the one that was linted.
+      for (const raw of edgeValues(r, edge)) edgeCount += quotedValues(raw).filter(Boolean).length;
     }
   }
 
