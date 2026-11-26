@@ -24,12 +24,16 @@ export default {
   // --- identity -----------------------------------------------------------
   name: 'tresridge',
   wordmark: { accent: 'tres', rest: 'ridge' },
-  badge: 'v0.1',
+  badge: 'v0.9.0',
   tagline: 'Declare the edge, resolve or refuse.',
   description:
     'The .tres relation standard: point tresridge at the tree you already have, and it tells you what you have, what dangles, and what is undeclared.',
   url: 'https://tresridge.creadev.org',
   repo: 'https://github.com/dhaupin/tresridge',
+  // The registry page. npm has no generated surface here, but the header nav and
+  // the docs both link it, so it lives where identity lives - the brand census
+  // refuses this URL typed anywhere else.
+  npm: 'https://www.npmjs.com/package/tresridge',
   author: 'dhaupin',
   license: 'MIT',
   keywords:
@@ -68,6 +72,7 @@ export default {
   nav: [
     { label: 'Home', to: '/', end: true, group: 'site' },
     { label: 'GitHub', href: 'https://github.com/dhaupin/tresridge', group: 'out' },
+    { label: 'npm', href: 'https://www.npmjs.com/package/tresridge', group: 'out' },
   ],
   // Footer-only extras (legal + provenance). Keep legal labels smaller than
   // the nav; provenance links belong in the footer, not the header.

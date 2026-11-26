@@ -14,6 +14,8 @@ Point tresridge at the tree you already have. It tells you what you have, what d
 
 The [CLI](/tresridge/cli/) page covers the verbs that read, derive, and judge a tree.
 
+The package page is [npmjs.com/package/tresridge](https://www.npmjs.com/package/tresridge) (0.9.0 is published, so `npx tresridge` resolves).
+
 ## The one-line pitch
 
 **Declare the edge, resolve or refuse.** A dangling id is not an error in most trees; it is a warning in a log nobody reads. tresridge moves that refusal from playtest to author time, with a filename.
