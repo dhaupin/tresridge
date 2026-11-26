@@ -301,6 +301,24 @@ try {
   if (cmd === 'graph') {
     const { declaration, residue } = inferFrom(tree);
       const against = flag('--against');
+      // `probable` is the adoption on-ramp: "references you have not named yet". A field
+      // the declaration ALREADY names is answered, so leaving it on the list makes the
+      // list permanent - a host adopting the tool sees the same rows forever, and
+      // answering one never shortens it. Filter against the declaration actually in
+      // force (an explicit `--against` wins, else the resolved default), never against a
+      // fresh inference, which by construction names every field it can.
+      const knownPath = against
+        ? (isAbsolute(against) ? against : resolve(process.cwd(), against))
+        : declPath;
+      // Kept SEPARATE from `residue.probable`: the diff needs the unfiltered list (a
+      // declared probable field is the ANSWER to a residue row, so the drift gate must
+      // still see the row to exempt it). Only the REPORT shrinks.
+      let reportable = residue.probable || [];
+      if (existsSync(knownPath) && residue.probable) {
+        const known = JSON.parse(readFileSync(knownPath, 'utf8'));
+        const named = new Set((known.edges || []).map((e) => `${e.family}.${String(e.field).replace(/\[\]/g, '')}`));
+        reportable = residue.probable.filter((p) => !named.has(`${p.family}.${p.field}`));
+      }
       if (against) {
         const againstPath = isAbsolute(against) ? against : resolve(process.cwd(), against);
         if (!existsSync(againstPath)) { console.error(`tresridge: --against declaration not found: ${against}`); process.exit(2); }
@@ -318,7 +336,7 @@ try {
       }
     const out = flag('--out');
     if (out) writeFileSync(out, JSON.stringify(declaration, null, 2) + '\n');
-    if (has('--json')) { console.log(JSON.stringify({ declaration, residue }, null, 2)); }
+    if (has('--json')) { console.log(JSON.stringify({ declaration, residue: { ...residue, probable: reportable } }, null, 2)); }
     else {
       console.log(`tresridge graph: ${tree.families.length} families, ${tree.records.length} records, ${declaration.edges.length} edges inferred`);
       console.log(`  residue: ${residue.undeclared.length} field(s) need declaration`);
@@ -326,7 +344,7 @@ try {
       // A field the naming rule cannot see, whose values ARE ids elsewhere. Printed
       // because the alternative is a blank page: the on-ramp reported "0 edges, 0
       // residue" over a tree carrying 2,000 references (issue #22).
-      const prob = residue.probable || [];
+      const prob = reportable;
       if (prob.length) {
         console.log(`  probable: ${prob.length} field(s) look like references but are not *_id named`);
         for (const u of prob.slice(0, 20)) {
