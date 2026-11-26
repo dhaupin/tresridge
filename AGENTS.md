@@ -148,7 +148,7 @@ family membership: the rig is `coreforge`, the tool is ours.
   own contract validates sources for achievement/quest methods only, and nothing reads
   the field at runtime. A baseline with a reason and an expiry is the honest record; a
   `literal` row would claim the field is not a reference at all, which is false for the
-  21 titles where it is.
+  23 titles where it is.
 
 ## Release
 
