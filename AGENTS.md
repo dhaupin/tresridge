@@ -71,6 +71,20 @@ family membership: the rig is `coreforge`, the tool is ours.
   0 edges; `doctor` summarised a tree with no declaration; `--against` compared keys and
   missed a retargeted edge). When you add a verb or a gate, ask what it does when it has
   nothing to judge, and make that exit `2`, never `0`.
+- **A check that cannot SEE the data reports success.** The silent-pass shape above, one
+  layer down: the parser never handed the check the values, so "no findings" was honest
+  about an empty input. `nestedKeys` matched keys only where a line BEGAN, so the one-line
+  dict form (`entries = [{ "item_id": "x" }]`) yielded zero keys and a declared `nested`
+  edge checked nothing. When a rule finds nothing, prove the data reached it: assert a
+  POSITIVE case (a value that must resolve) beside the negative one, or an empty result is
+  indistinguishable from a blind one. Same class: `virtualFamilies` typo'd as a string made
+  every `<stem>` lookup `undefined`, and `undefined` read as "nothing to check".
+- **Author-supplied data must not control runtime cost.** A declaration is input, and input
+  can be hostile. The virtual-pattern matcher backtracked exponentially: 8 stems against an
+  unsatisfiable value took 5978ms for ONE value, so a 100-record family hung for ~8 minutes
+  - a denial of service in the tool whose job is to refuse bad declarations cheaply.
+  Memoize, bound the walk, or refuse the shape. Never let a `pattern` string decide how long
+  the lint runs.
 - **Test the binary, not just the library.** `test/cli.mjs` spawns `bin/cli.mjs` over real
   bytes in temp dirs and asserts stdout/stderr/exit code. The library tests all passed while
   the CLI silently passed a 0-edge tree, because nothing ran the program. Mutation-test every
