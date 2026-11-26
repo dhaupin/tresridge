@@ -53,6 +53,26 @@
       "status": "agree"
     },
     {
+      "id": "nonid-ref-value",
+      "observed": {
+        "violations": [
+          "dangling-ref"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "empty-ref-value",
+      "observed": {
+        "violations": [],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
       "id": "schema-mismatch",
       "observed": {
         "violations": [
