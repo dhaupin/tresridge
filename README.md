@@ -42,9 +42,9 @@ node bin/cli.mjs lint <tree> --rules p.mjs      # add a host profile's rules
 node bin/cli.mjs --version                      # the packaged version
 ```
 
-Once the package is on the registry (see **Status** - it is not yet), every verb
-above is also `npx tresridge <verb>`, and a host installs it with
-`npm i -D tresridge`.
+Every verb above is also `npx tresridge <verb>` - the package is on the registry, so
+that resolves from any machine with no checkout. A host installs it with
+`npm i -D tresridge`, or runs it from a checkout as `node bin/cli.mjs`.
 
 Exit contract: `0` clean, `1` violations, `2` usage.
 
@@ -134,9 +134,9 @@ family's sites run - adopted here, not vendored.
 
 ## Status
 
-**v0.1 - the first cut (2026-11-17).** The spec, the front door, and the CLI land together. The extraction is proven, and the tool now proves itself: the refusal battery observes every verdict from a real lint run and refuses its own run on dishonesty. The numbers this repo publishes are measured from the committed fixture above, never remembered; the reference deployment's own figures are a dated snapshot in [`labs/`](labs/).
+**v0.9.0 - the first registry cut (2026-11-26).** The spec, the front door, and the CLI are on npm: `npx tresridge` needs no checkout. The spec, the front door, and the CLI landed together in v0.1 (2026-11-17). The extraction is proven, and the tool now proves itself: the refusal battery observes every verdict from a real lint run and refuses its own run on dishonesty. The numbers this repo publishes are measured from the committed fixture above, never remembered; the reference deployment's own figures are a dated snapshot in [`labs/`](labs/).
 
-**M0** spec text - *done* · **M1** the CLI (`lint` / `graph` / `doctor`) - *done* · **M2** conformance harness + npm publish - *partial* (battery + cases ship; **the package is not on the registry yet**, so `npx tresridge` does not resolve - run it from a checkout, or see [`DEPLOY.md`](DEPLOY.md) for the manual first cut and the tag-driven OIDC lane that takes over at 1.0.0) · **M3** the reference deployment adopts - *designed* · **M4** the site rig (coreforge landing + docs) - *shipped in this branch*.
+**M0** spec text - *done* · **M1** the CLI (`lint` / `graph` / `doctor`) - *done* · **M2** conformance harness + npm publish - *done* (the battery and cases ship, and `tresridge@0.9.0` is on the registry, so `npx tresridge` resolves; the tag-driven OIDC lane with provenance attestation takes over at 1.0.0, since this first cut was a manual publish) · **M3** the reference deployment adopts - *designed* · **M4** the site rig (coreforge landing + docs) - *shipped in this branch*.
 
 ## Family model, not family membership
 

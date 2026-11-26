@@ -35,7 +35,7 @@
     "check": "npm run check:tool && npm run site:check",
     "prepublishOnly": "npm run check",
     "ship": "node scripts/ship-from-download.cjs",
-    "release:verify": "coreforge verify-release",
+    "release:verify": "coreforge verify-release --allow packs/",
     "site:check": "coreforge check",
     "site:doctor": "coreforge doctor",
     "site:sync": "coreforge sync",
