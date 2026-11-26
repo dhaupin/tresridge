@@ -123,6 +123,33 @@ family membership: the rig is `coreforge`, the tool is ours.
   and `spec/SPEC.md` section 5 before editing either.
 - Generated files never travel: `node_modules/`, `*.tgz`.
 
+- **A chain follows ONE field name.** The `cycle` rule walks a single relation, not
+  whichever edge is handy: `next_quest_id` and `previous_quest_id` pointing at each other
+  are one intentional two-way link, and following both directions invents a refusal for
+  correct data (measured: 7 false cycles on the reference deployment, every one an inverse
+  pair). `nested`/`refs` edges are never followed - they name many ids, so there is no
+  single next record. A node is a `{family, id}` PAIR: uniqueness is per family, and a
+  joined `family/id` string would have to be split back apart (and breaks on an id
+  containing `/`).
+- **`probable` is an on-ramp, not a permanent list.** A field the declaration already
+  names is ANSWERED and leaves the report, or adoption never converges (a host answering
+  a row would see it forever). The filter must NOT feed the drift gate: the declared
+  probable field is the ANSWER to a residue row, so the row has to survive into the diff
+  for the exemption to apply - filtering the diff's input once reported 20 phantom
+  removals. `graph` resolves the declaration the same way `lint` does (`--against`, else
+  the default), never against a fresh inference, which by construction names every field.
+- **A nested value that opens `[`/`{` is a CONTAINER, not a reference.** Its quoted keys
+  are structure; reading them invents a probable row for a field holding no reference at
+  that depth (measured: `hordes.waves.spawns`, whose real reference is
+  `waves[].spawns[].template_id`). Only ONE dict level is parsed (see `nestedKeys`), so a
+  depth-2 path is out of scope for 0.9.x rather than a silent guess.
+- **A semantic token is baselined, not edited away.** `titles.unlock_source` on a
+  purchase-method title carries a route label (`sigil_sink`), not a record id: the host's
+  own contract validates sources for achievement/quest methods only, and nothing reads
+  the field at runtime. A baseline with a reason and an expiry is the honest record; a
+  `literal` row would claim the field is not a reference at all, which is false for the
+  23 titles where it is.
+
 ## Release
 
 - 0.9.x is the manual lane (`npm publish` by a human). 0.9.0 shipped this way on

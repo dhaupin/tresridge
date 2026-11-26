@@ -106,6 +106,26 @@
       "status": "agree"
     },
     {
+      "id": "cycle-same-id-across-families",
+      "observed": {
+        "violations": [],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
+      "id": "cycle-across-families",
+      "observed": {
+        "violations": [
+          "cycle"
+        ],
+        "warnings": [],
+        "declErrors": []
+      },
+      "status": "agree"
+    },
+    {
       "id": "required-false-warns",
       "observed": {
         "violations": [],

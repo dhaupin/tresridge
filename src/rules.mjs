@@ -518,51 +518,82 @@ export const RULES = [
     scope: 'tree',
     run(ctx) {
       const out = [];
-      const cycleEdges = ctx.decl.edges.filter((e) => e.kind === 'ref' && e.required !== false);
-      const seen = new Set();
       // A cycle is a CHAIN that returns to its start (SPEC section 7), not just a pair.
       // Following one hop and looking for an immediate return caught A<->B, while
       // a -> b -> c -> a passed silently - the longest chains, the ones hardest to see
       // by eye, were exactly the ones this rule could not see.
+      //
+      // A node is a {family, id} PAIR, never a bare id. Uniqueness is per family (SPEC
+      // section 3), so two families may hold the same id: walking bare ids read
+      // `world_bosses/saint -> enemies/saint` as `saint -> saint` and called a legitimate
+      // reference a self-cycle. Qualifying the node with its family is what makes
+      // "returns to its start" mean the same RECORD, which is the only thing a cycle can
+      // mean. The same qualification is what lets a chain CROSS families: each hop
+      // resolves the next id into whichever target family actually holds it.
+      const cycleEdges = ctx.decl.edges.filter((e) => e.kind === 'ref' && e.required !== false);
+      // One edge per (family, field): the declaration refuses duplicates, and the walk
+      // looks a landed family's edge up BY FIELD to decide where the next hop may land.
+      const edgeFor = new Map();
+      for (const e of cycleEdges) edgeFor.set(`${e.family}.${canonField(e.field)}`, e);
+      const asList = (t) => (Array.isArray(t) ? t : [t]);
+      // A node is a {family, id} PAIR, never a bare id and never a joined string: ids are
+      // only unique within a family (SPEC section 3), and a joined key would have to be
+      // split back apart (and would break on an id containing the separator).
+      const seen = new Set();
+      // A chain follows ONE field name through every hop. That is what "a chain returns to
+      // its start" means: a path through one relation. Following whichever edge is handy
+      // instead walks inverse pairs in opposite directions - `stoop.next_quest_id = cull`
+      // and `cull.previous_quest_id = stoop` are one intentional two-way link, not a
+      // cycle - and invents a refusal for data that is correct. Measured on the reference
+      // deployment, mixing fields produced 7 such refusals and every one was an inverse
+      // pair. `nested`/`refs` edges are never followed: they name many ids, so a chain
+      // through them has no single next record.
+      const walk = (node, field, targets, path, depth) => {
+        if (depth > ctx.tree.records.length) return null;
+        const rec = ctx.byId.get(node.family)?.get(node.id);
+        if (!rec) return null;
+        const next = idsIn(rec.fields.get(field) || '')[0];
+        if (!next) return null;
+        // Where the hop may land: the families the LANDED family declares for this SAME
+        // field when it declares them, otherwise the families the starting edge named.
+        // That is what carries a chain across a family boundary (`npcs.rival_id` ->
+        // `zones`, `zones.rival_id` -> `npcs`), and it is why a union target must be
+        // searched in order rather than tried family by family: an id that exists in two
+        // families names ONE record, and falling through to the second would read it as two.
+        const here = edgeFor.get(`${node.family}.${field}`);
+        const into = asList(here ? here.target : targets);
+        const t = into.find((f) => ctx.byId.get(f)?.has(next));
+        if (!t) return null;
+        const landed = { family: t, id: next, file: ctx.byId.get(t).get(next).file };
+        const at = path.findIndex((n) => n.family === landed.family && n.id === landed.id);
+        if (at >= 0) return { ring: path.slice(at), field };
+        return walk(landed, field, targets, [...path, landed], depth + 1);
+      };
       for (const e of cycleEdges) {
-        const pool = ctx.byFamily.get(e.family);
+        const field = canonField(e.field);
+        const pool = ctx.byId.get(e.family);
         if (!pool) continue;
-        // Follow the edge to ITS target family, not the declaring family. A
-        // same-name id in a different family is not a cycle.
-        const tkey = Array.isArray(e.target) ? e.target[0] : e.target;
-        // Targets are found by ID: an edge names an id, and id-less records share a
-        // stem, so `byId` (not the path-keyed `byFamily`) is the index that answers.
-        const tpool = ctx.byId.get(tkey);
-        if (!tpool) continue;
-        for (const r of pool.values()) {
-          const first = idsIn(r.fields.get(e.field) || '')[0];
-          if (!first || !tpool.has(first)) continue;
-          // Walk the chain, remembering only THIS walk's ids: a chain that returns to
-          // one of them closes a cycle, and a chain that merely joins a cycle already
-          // reported is not re-reported from its middle.
-          const path = [r.id];
-          const onPath = new Set(path);
-          let cursor = first;
-          let closed = false;
-          // Bounded by the record count: any longer walk must revisit an id, and a
-          // revisit is the cycle. Keeps a pathological chain finite.
-          for (let step = 0; step <= ctx.tree.records.length; step++) {
-            if (onPath.has(cursor)) { closed = true; break; }
-            path.push(cursor);
-            onPath.add(cursor);
-            const rec = tpool.get(cursor);
-            const next = rec ? idsIn(rec.fields.get(e.field) || '')[0] : undefined;
-            if (!next || !tpool.has(next)) break;
-            cursor = next;
-          }
-          if (!closed) continue;
-          // One report per cycle, whichever record the walk started from: key the ring
-          // by its sorted ids so a->b->c->a and b->c->a->b name one cycle.
-          const ring = path.slice(path.indexOf(cursor));
-          const key = [...ring].sort().join('<->');
+        for (const [id, rec] of pool) {
+          // The path IS the visited set: a chain that returns to one of its own nodes
+          // closes a cycle, and a chain that merely joins a cycle already reported is not
+          // re-reported from its middle.
+          const found = walk({ family: e.family, id, file: rec.file }, field, e.target, [{ family: e.family, id, file: rec.file }], 0);
+          if (!found) continue;
+          // One report per cycle, whichever record the walk started from: key the ring by
+          // its sorted nodes so a->b->c->a and b->c->a->b name one cycle.
+          const key = found.ring.map((n) => `${n.family}/${n.id}`).sort().join('<->');
           if (seen.has(key)) continue;
           seen.add(key);
-          out.push({ code: 'cycle', record: r.file, field: e.field, detail: `${[...ring, ring[0]].join(' -> ')} via ${e.field}` });
+          // Name a record that is IN the ring. The walk may have entered the ring from
+          // outside it (`break_the_shell -> stoop <-> cull`), and attributing the finding
+          // to that approach record points a reader at a file with nothing wrong in it.
+          const names = found.ring.map((n) => `${n.family}/${n.id}`);
+          out.push({
+            code: 'cycle',
+            record: found.ring[0].file,
+            field: found.field,
+            detail: `${[...names, names[0]].join(' -> ')} via ${found.field}`,
+          });
         }
       }
       return out;

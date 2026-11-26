@@ -1,0 +1,14 @@
+{
+  "id": "cycle-same-id-across-families",
+  "base": false,
+  "add": {
+    "npcs/npc_b.tres": "script_class=\"NpcData\"\nid = \"npc_b\"\nhome_zone_id = \"npc_b\"\n",
+    "zones/npc_b.tres": "script_class=\"ZoneData\"\nid = \"npc_b\"\n"
+  },
+  "extraEdges": [],
+  "overrideEdges": [],
+  "expect": {
+    "violations": [],
+    "codes": []
+  }
+}
