@@ -203,7 +203,6 @@ try {
       (parsed.residue.probable || []).length === 0, JSON.stringify(parsed.residue.probable));
   }
 
-
     // A field the declaration ALREADY names is an ANSWERED probable row: it must leave
     // the on-ramp list, or the list never shrinks and adopting the tool never converges.
     // The pair below is the proof: identical tree, identical inference, and the ONLY
@@ -581,7 +580,6 @@ try {
       check('--json is unbounded regardless of the cap', parsed?.violations?.length === 31, `got ${parsed?.violations?.length}`);
     }
 
-
     // -- doctor names what is wrong, not just how much ----------------------------
     {
       const files = { 'relations.json': DECL, 'zones/zn_haven.tres': 'script_class="ZoneData"\nid = "zn_haven"\n' };
@@ -665,6 +663,41 @@ try {
         'things/c.tres': 'id = "c"\n',
       });
       expectCode('an acyclic chain of three is clean', cli(['lint', ok]), 0);
+    }
+
+    {
+      // The cycle walk read `idsIn(...)[0]`, so a cycle reachable through any LATER
+      // value of a multi-valued field was invisible, while `dangling-ref` judged every
+      // value. Order alone decided the verdict: ["zn_a","zn_x"] closed the loop and
+      // ["zn_x","zn_a"] - the same loop - reported 0 violations. Both orderings are
+      // pinned below because a single ordering is what let the gap survive.
+      const decl = JSON.stringify({
+        schemaVersion: 1,
+        families: [{ key: 'npcs' }, { key: 'zones' }],
+        edges: [
+          { family: 'npcs', field: 'zone_id', target: 'zones', kind: 'ref', required: true },
+          { family: 'zones', field: 'zone_id', target: 'npcs', kind: 'ref', required: true },
+        ],
+      });
+      const mk = (npcZoneId) => tree({
+        'relations.json': decl,
+        'npcs/npc_a.tres': `id = "npc_a"\nzone_id = ${npcZoneId}\n`,
+        'zones/zn_a.tres': 'id = "zn_a"\nzone_id = "npc_a"\n',
+        'zones/zn_x.tres': 'id = "zn_x"\n',
+      });
+      for (const [label, value] of [['first', '["zn_a", "zn_x"]'], ['second', '["zn_x", "zn_a"]']]) {
+        const r = cli(['lint', mk(value)]);
+        expectCode(`a cycle through the ${label} value of a multi-valued ref exits 1`, r, 1);
+        check(`a cycle through the ${label} value is reported`, /FAIL\s+cycle/.test(r.out), r.out.trim().split('\n').slice(0, 4).join(' | '));
+      }
+      // ...and branching must not invent cycles: the same shape with no loop stays clean.
+      const acyclic = tree({
+        'relations.json': decl,
+        'npcs/npc_a.tres': 'id = "npc_a"\nzone_id = ["zn_x", "zn_y"]\n',
+        'zones/zn_x.tres': 'id = "zn_x"\n',
+        'zones/zn_y.tres': 'id = "zn_y"\n',
+      });
+      expectCode('a multi-valued ref with no loop is clean', cli(['lint', acyclic]), 0);
     }
 
     {
@@ -760,8 +793,6 @@ try {
       expectCode('the unsatisfiable virtual value is still refused', r, 1);
       check('the unsatisfiable virtual value is named', /dangling-ref/.test(r.out), 'no dangling-ref');
     }
-
-
 
   }
 

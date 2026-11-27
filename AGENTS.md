@@ -152,9 +152,13 @@ family membership: the rig is `coreforge`, the tool is ours.
 
 ## Release
 
-- 0.9.x is the manual lane (`npm publish` by a human). 0.9.0 shipped this way on
-  2026-11-26 and is `dist-tags.latest`. This is a synmergia project: publishing is
-  optional and synmergia-owned, never a family ladder.
+- 0.9.x was the manual lane (`npm publish` by a human). 0.9.0 shipped this way on
+  2026-11-26. This is a synmergia project: publishing is optional and synmergia-owned,
+  never a family ladder.
+- **1.0.0+ is the governed lane.** A `vX.Y.Z` tag runs `publish.yml`, which publishes
+  over OIDC with `--provenance`, cuts the release object, and runs the verify ladder.
+  The tag job is the FIRST publisher at 1.0.0, unlike a 0.x cut - that is the whole
+  reason the lane can assert provenance here and could not at 0.9.0.
 - `packs/` is on coreforge's family-default forbidden list, so every `verify-release`
   invocation passes `--allow packs/` - the reference pack is a shipped artifact here,
   not a dev rig. Drop the flag and the ladder fails a clean cut with `FORBIDDEN
