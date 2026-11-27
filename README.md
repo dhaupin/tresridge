@@ -4,7 +4,7 @@ The `.tres` relation standard. **One edge grammar + one resolution contract, man
 
 **Core law:** declare the edge, resolve or refuse. The edge declaration is the shared-facts column; everything else about a record is host-owned and never refused.
 
-**New here?** Start with [`labs/prd-tresridge.md`](labs/prd-tresridge.md) - the product contract. It carries the frozen v1 grammar (family + edge tables, five edge kinds, the resolution rule), the general/reference split, and the conformance CLI surface.
+**New here?** Start with [`labs/prd-tresridge.md`](https://github.com/dhaupin/tresridge/blob/main/labs/prd-tresridge.md) - the product contract. It carries the frozen v1 grammar (family + edge tables, five edge kinds, the resolution rule), the general/reference split, and the conformance CLI surface.
 
 This repo ships the normative spec ([`spec/SPEC.md`](spec/SPEC.md)) plus a zero-dependency lint CLI that kills the worst relation-authoring class at author time: a field that points at a record which does not exist, or a `_id` field no one declared. Every host that keeps a tree of records uses the same core check.
 
@@ -57,7 +57,7 @@ A single convention resolves most edges with no declaration:
 > **The target family is the last family token in the field name, pluralised.**
 > `giver_npc_id` → `npc` · `source_zone_id` → `zones` · `secondary_loot_table_id` → `loot_tables`
 
-This is **inference, not the contract** - it seeds a declaration. Measured on the committed fixture ([`conformance/fixture/`](conformance/fixture/)), which anyone can re-run, the rule resolves every edge it can and leaves the rest as named residue:
+This is **inference, not the contract** - it seeds a declaration. Measured on the committed fixture ([`conformance/fixture/`](https://github.com/dhaupin/tresridge/tree/main/conformance/fixture)), which anyone can re-run, the rule resolves every edge it can and leaves the rest as named residue:
 
 <!-- BEGIN GENERATED: fixture measurement -->
 
@@ -134,7 +134,7 @@ family's sites run - adopted here, not vendored.
 
 ## Status
 
-**v0.9.0 - the first registry cut (2026-11-26).** The spec, the front door, and the CLI are on npm: `npx tresridge` needs no checkout. The spec, the front door, and the CLI landed together in v0.1 (2026-11-17). The extraction is proven, and the tool now proves itself: the refusal battery observes every verdict from a real lint run and refuses its own run on dishonesty. The numbers this repo publishes are measured from the committed fixture above, never remembered; the reference deployment's own figures are a dated snapshot in [`labs/`](labs/).
+**v0.9.0 - the first registry cut (2026-11-26).** The spec, the front door, and the CLI are on npm: `npx tresridge` needs no checkout. The spec, the front door, and the CLI landed together in v0.1 (2026-11-17). The extraction is proven, and the tool now proves itself: the refusal battery observes every verdict from a real lint run and refuses its own run on dishonesty. The numbers this repo publishes are measured from the committed fixture above, never remembered; the reference deployment's own figures are a dated snapshot in [`labs/`](https://github.com/dhaupin/tresridge/tree/main/labs).
 
 **M0** spec text - *done* · **M1** the CLI (`lint` / `graph` / `doctor`) - *done* · **M2** conformance harness + npm publish - *done* (the battery and cases ship, and `tresridge@0.9.0` is on the registry, so `npx tresridge` resolves; the tag-driven OIDC lane with provenance attestation takes over at 1.0.0, since this first cut was a manual publish) · **M3** the reference deployment adopts - *designed* · **M4** the site rig (coreforge landing + docs) - *shipped in this branch*.
 
