@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **`tresridge graph` refuses a malformed declaration instead of leaking a `TypeError`.** The
+  declaration is read raw on this path (it may be the draft target rather than a lint input),
+  and the residue filter dereferenced `known.edges` without checking it. A hand-edited
+  declaration whose `edges` was an object therefore printed
+  `(known.edges || []).map is not a function` — a JS internal naming nothing the user could act
+  on. `lint` and `doctor` already refused the same input through `validateDeclaration`; `graph`
+  now calls it too, and reports the same `DECL declaration edges MUST be an array` with exit 1.
+  No change to any well-formed declaration's verdict.
+
 ## [1.1.0] - 2026-11-27
 
 Two additive features: the grammar stops being tied to `.tres` on disk, and the API
