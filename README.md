@@ -1,10 +1,15 @@
-# tresridge 1.0.0
+# tresridge 1.1.0
 
 The `.tres` relation standard. **One edge grammar + one resolution contract, many hosts**: a tree of records becomes a declared graph, and one lint refuses an undeclared or dangling reference at author time.
 
 **Core law:** declare the edge, resolve or refuse. The edge declaration is the shared-facts column; everything else about a record is host-owned and never refused.
 
-**Transport, today:** records are read from `.tres` files. The grammar is format-independent - a family is a directory, an id is a filename stem, an edge is a field - but the reader is not yet a seam, so a host that keeps its records in JSON or its own loader format has to convert to lint. That is a stated limit, not an oversight; see [#23](https://github.com/dhaupin/tresridge/issues/23).
+[Site](https://tresridge.creadev.org/) ·
+[Docs](https://docs.creadev.org/tresridge/) ·
+[npm](https://www.npmjs.com/package/tresridge) ·
+[Creadev.org](https://creadev.org)
+
+**Transport, today:** `.tres` is the default, and the reader is a seam. The grammar was always format-independent - a family is a directory, an id is a filename stem, an edge is a field - and `--reader <module>` now replaces the walker and the parser, so a host that keeps its records in JSON lints the real tree instead of a converted copy. Families, ids, edges, and every rule are unchanged, so a dangling reference in a JSON tree is the same refusal. See [linting a tree that is not `.tres`](#linting-a-tree-that-is-not-tres).
 
 **New here?** Start with [`labs/prd-tresridge.md`](https://github.com/dhaupin/tresridge/blob/main/labs/prd-tresridge.md) - the product contract. It carries the frozen v1 grammar (family + edge tables, five edge kinds, the resolution rule), the general/reference split, and the conformance CLI surface.
 
@@ -175,7 +180,7 @@ family's sites run - adopted here, not vendored.
 
 ## Status
 
-**v0.9.0 - the first registry cut (2026-11-26).** The spec, the front door, and the CLI are on npm: `npx tresridge` needs no checkout. The spec, the front door, and the CLI landed together in v0.1 (2026-11-17). The extraction is proven, and the tool now proves itself: the refusal battery observes every verdict from a real lint run and refuses its own run on dishonesty. The numbers this repo publishes are measured from the committed fixture above, never remembered; the reference deployment's own figures are a dated snapshot in [`labs/`](https://github.com/dhaupin/tresridge/tree/main/labs).
+**v1.1.0 - the reader seam and the type declarations (2026-11-27).** The spec, the front door, and the CLI are on npm: `npx tresridge` needs no checkout. The spec, the front door, and the CLI landed together in v0.1 (2026-11-17). The extraction is proven, and the tool now proves itself: the refusal battery observes every verdict from a real lint run and refuses its own run on dishonesty. The numbers this repo publishes are measured from the committed fixture above, never remembered; the reference deployment's own figures are a dated snapshot in [`labs/`](https://github.com/dhaupin/tresridge/tree/main/labs).
 
 **M0** spec text - *done* · **M1** the CLI (`lint` / `graph` / `doctor`) - *done* · **M2** conformance harness + npm publish - *done* (the battery and cases ship, and `tresridge@0.9.0` is on the registry, so `npx tresridge` resolves; the tag-driven OIDC lane with provenance attestation takes over at 1.0.0, since this first cut was a manual publish) · **M3** the reference deployment adopts - *designed* · **M4** the site rig (coreforge landing + docs) - *shipped in this branch*.
 

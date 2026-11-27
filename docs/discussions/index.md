@@ -25,3 +25,4 @@ Prose on these pages flows - paragraphs keep their natural length, and nothing i
 | --- | --- | --- |
 | [Announcing tresridge v0.9.0](/tresridge/discussions/announcing-v0.9.0/) | 0.9.0 | published to npm 2026-11-26 |
 | [Announcing tresridge v1.0.0](/tresridge/discussions/announcing-v1.0.0/) | 1.0.0 | published to npm 2026-11-27 |
+| [Announcing tresridge v1.1.0](/tresridge/discussions/announcing-v1.1.0/) | 1.1.0 | published to npm 2026-11-27 |
