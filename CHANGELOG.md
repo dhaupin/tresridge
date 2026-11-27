@@ -4,7 +4,31 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-10-28
+## [Unreleased]
+
+### Added
+
+- **`--reader <module>`: lint a tree whose records are not `.tres`.** The grammar was
+  always format-independent, but the walker and the parser were not, so a host with
+  records in another format had to convert its tree first and then lint a copy that
+  could drift from the real records. A reader module supplies `{ walk(root), parse(file) }`
+  and replaces exactly that pair; families, ids, edges, and every rule are unchanged, so
+  a dangling reference in a JSON tree is the same refusal as one in a `.tres` tree. The
+  module is validated on load, so a reader missing `walk` or `parse` is a usage error
+  (exit 2) naming the flag, never a tree that silently reads as `empty-tree`. The
+  `empty-tree` and `not-a-tree-root` details now name the reader's suffix instead of
+  hardcoding `.tres`.
+
+- **Type declarations for every published subpath.** The package shipped no types, so a
+  TypeScript host imported the API as `any`. `src/*.d.mts` now describe the root, `graph`,
+  `rules`, and `tres` subpaths, `package.json` carries a `types` entry, and each subpath
+  export became a `{ types, default }` condition so a resolver finds the declaration.
+  The declarations are gated by `npm run test:types`, which compares them to the real
+  runtime exports in both directions: an export without a type fails, and so does a
+  declared value the module no longer exports. Names only - a wrong parameter type still
+  passes, so this is a floor rather than a proof.
+
+## [1.0.0] - 2026-11-27
 
 The first governed cut. The grammar is frozen (SPEC v1), the release lane moves to
 OIDC with provenance attestation, and the cycle rule stops depending on the order of

@@ -3,11 +3,24 @@
   "version": "1.0.0",
   "description": "The .tres relation standard: one edge grammar, one resolution contract, many hosts.",
   "type": "module",
+  "types": "./src/lint.d.mts",
   "exports": {
-    ".": "./src/lint.mjs",
-    "./graph": "./src/graph.mjs",
-    "./rules": "./src/rules.mjs",
-    "./tres": "./src/tres.mjs",
+    ".": {
+      "types": "./src/lint.d.mts",
+      "default": "./src/lint.mjs"
+    },
+    "./graph": {
+      "types": "./src/graph.d.mts",
+      "default": "./src/graph.mjs"
+    },
+    "./rules": {
+      "types": "./src/rules.d.mts",
+      "default": "./src/rules.mjs"
+    },
+    "./tres": {
+      "types": "./src/tres.d.mts",
+      "default": "./src/tres.mjs"
+    },
     "./spec/*": "./spec/*",
     "./package.json": "./package.json"
   },
@@ -31,6 +44,7 @@
     "test": "node test/battery.mjs",
     "test:cli": "node test/cli.mjs",
     "test:drift": "node test/drift.mjs",
+    "test:types": "node test/types.mjs",
     "test:ship": "node --test test/ship-from-download.test.cjs",
     "test:packs": "node test/packs.mjs",
     "matrix:gen": "node scripts/gen-refusal-matrix.mjs",
@@ -39,7 +53,7 @@
     "vocab:write": "node scripts/check-vocabulary.mjs --write",
     "docs:check": "node scripts/check-docs.mjs",
     "docs:write": "node scripts/check-docs.mjs --write",
-    "check:tool": "npm test && npm run test:packs && npm run matrix:check && npm run vocab:check && npm run docs:check && npm run test:ship",
+    "check:tool": "npm test && npm run test:types && npm run test:packs && npm run matrix:check && npm run vocab:check && npm run docs:check && npm run test:ship",
     "check": "npm run check:tool && npm run site:check",
     "prepublishOnly": "npm run check",
     "ship": "node scripts/ship-from-download.cjs",

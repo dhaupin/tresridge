@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { readTree, rootProblem } from '../src/tres.mjs';
+import { readTree, rootProblem, readerProblem } from '../src/tres.mjs';
 import { lint, validateDeclaration, SCHEMA_VERSION } from '../src/lint.mjs';
 import { inferFrom, diffDeclaration } from '../src/graph.mjs';
 import { VOCABULARY } from '../src/vocabulary.mjs';
@@ -13,9 +13,9 @@ import { collectPacks, checksOf, vocabularyOf, discoverPackDirs, loadPackDir, ce
 
 const USAGE = `tresridge - the .tres relation standard
 
-  tresridge lint <tree> [--decl <file>] [--rules <module>] [--packs <dir>]... [--json] [--all]
-  tresridge graph <tree> [--out <file>] [--against <file>] [--json]
-  tresridge doctor <tree> [--decl <file>] [--rules <module>] [--packs <dir>]... [--json]
+  tresridge lint <tree> [--decl <file>] [--rules <module>] [--reader <module>] [--packs <dir>]... [--json] [--all]
+  tresridge graph <tree> [--out <file>] [--against <file>] [--reader <module>] [--json]
+  tresridge doctor <tree> [--decl <file>] [--rules <module>] [--reader <module>] [--packs <dir>]... [--json]
   tresridge rules [--json]                # the refusal vocabulary this lint carries
   tresridge lint-packs [<packs-dir>] [--deep] [--json]   # check packs against the spec
 
@@ -30,6 +30,10 @@ const USAGE = `tresridge - the .tres relation standard
   --decl <file>     the declaration (default: <tree>/relations.json, then ./relations.json)
   --rules <module>  a host extension module exporting { rules: [...] }.
                     A rule whose code the vocabulary does not carry is refused.
+  --reader <module> a host reader module exporting { reader: { walk, parse } },
+                    for a tree whose records are not .tres. walk(root) returns
+                    record paths; parse(file) returns { id, idDeclared, fields,
+                    nested, unparseable }. Default: the built-in .tres reader.
   --packs <dir>     a packstruct pack dir, or a packs root whose children are
                     packs (SPEC v1). Repeatable. A pack carries its own
                     vocabulary, so its codes are merged before its rules run.
@@ -216,6 +220,20 @@ async function loadHostRules(spec) {
 }
 const hostRules = await loadHostRules(flag('--rules'));
 
+// The transport seam: a host module exporting { reader: { walk, parse } }. The `.tres`
+// reader is the built-in default, so this only ever REPLACES the walk/parse pair -
+// families, ids, edges and every rule stay format-independent.
+async function loadReader(spec) {
+  if (!spec) return undefined;
+  const p = isAbsolute(spec) ? spec : resolve(process.cwd(), spec);
+  if (!existsSync(p)) { console.error(`tresridge: --reader module not found: ${spec}`); process.exit(2); }
+  const mod = await import(pathToFileURL(p).href);
+  const bad = readerProblem(mod);
+  if (bad) { console.error(`tresridge: --reader module ${bad}`); process.exit(2); }
+  return mod.reader || mod.default;
+}
+const reader = await loadReader(flag('--reader'));
+
 // The pack surface (packstruct SPEC v1): a pack is a dir with pack.json, or a
 // packs root whose children are packs. A pack's checks ARE rules, and its
 // vocabulary is merged before its rules are judged - a pack may not invent a
@@ -271,7 +289,7 @@ try {
   // Read the tree once, then hold it to the contract root. A root above or below the
   // tree root reads as a plausible tree and yields a useless graph (0 edges, or one
   // "family" per file), so it is a usage refusal, never a silent pass.
-  const tree = readTree(root);
+  const tree = readTree(root, { reader });
   const rootErr = rootProblem(tree, root);
   if (rootErr) {
     console.error(`tresridge: ${rootErr.code}: ${rootErr.detail}`);
