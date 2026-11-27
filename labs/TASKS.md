@@ -2,7 +2,39 @@
 
 > Rolling log. Companion to [`labs/prd-tresridge.md`](./prd-tresridge.md) (the product contract). Newest session at top. Struck items are done.
 
-Last updated: 2026-11-20.
+Last updated: 2026-11-03.
+
+## Session 2026-11-03 - the npm link joins the docs surface (family parity)
+
+tresridge joined the family roster and was onboarded with a parity check against the
+sibling sites. The survey found one real gap: **the published package was not linked from
+the docs**. `site.config.js` carried `npm` (the web nav renders it), but the docs header
+offered GitHub and search only, so the one page a reader lands on from search had no
+`npm install` path.
+
+**The fix, and why it is templated.** The obvious edit - a literal
+`https://www.npmjs.com/package/tresridge` in the footer, the memstruct shape - is refused
+here by the brand census: `docs/_layouts/default.html` is a structural surface, and a
+brand literal there is exactly what the census exists to stop (`BRAND-CENSUS: FAIL`, two
+hits, both the package name). The header button therefore builds the URL from
+`{{ site.title }}`, the docs title that `npm run site:sync` generates from
+`site.config.js`. One source, no literal, census clean.
+
+**The limit, stated.** The sibling dogfood renders `{{ site.npm_url }}` because coreforge's
+`sync` fans that key. tresridge consumes PUBLISHED coreforge 1.0.0, whose `sync` has no
+`npm_url` target at all (verified against the registry tarball, not assumed), so a
+`{{ site.npm_url }}` here would render empty. The templated `site.title` form is the
+published-consumer answer; the fan-out arrives when a coreforge release carries it.
+
+**The teeth.** `test/npm-parity.mjs` proves three things and bites on each: the web nav
+carries the link, the docs header carries the link (literal or the exact templated tail),
+and the docs title equals `package.json`'s name - the equality the templated URL rests on.
+Mutation-checked on real bytes: replacing the tail with another package reds two tests;
+removing the footer/header link reds the surface test. Wired into the battery as
+`[7/7]`.
+
+Measured: `npm test` 7/7 sections clean (battery 8/8 new tests, 21/21 ship), `npm run
+check` exit 0, BRAND-CENSUS PASS (5 literals, all confined to `site.config.js`).
 
 ## Session 2026-11-20 (a) - the staging branch, and the two promotions
 
