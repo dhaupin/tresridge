@@ -8,6 +8,53 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **`--json` no longer loses its tail on a pipe.** `process.exit()` does not wait for a
+  pipe, and a pipe is how a host reads this tool: a verdict over ~146KB arrived cut off
+  mid-string, so the caller's `JSON.parse` failed on a payload the lint had produced in
+  full. Every exit now drains stdout first. Reproduced with 900 findings (434KB) through
+  `spawnSync`, which is exactly the path `tools/lint-graph.mjs` in the field guide takes.
+- **A reader's `parse()` that throws is a refusal, not a crash with no file in it.** The
+  thrown message (`Expected double-quoted property name in JSON at position 23`) named no
+  file, so a malformed record in a 198-record tree reported a JSON position and nothing to
+  open. It is now an `unparseable-record` finding against that path, carrying the reader's
+  reason; a reader that fails on **every** record is refused once, by name, because that is
+  the reader and not the tree.
+- **The `--reader` contract is checked at the seam.** `fields` as a plain object used to
+  fail inside a rule (`r.fields.keys is not a function`); a `walk` returning relative paths
+  used to fail on `stat` with `ENOENT` against a path that was never a path; a `walk` naming
+  a missing file failed the same way. Each is now a usage refusal that names the file, what
+  the reader returned, and what the contract asks for. A `walk` that throws is reported as
+  `reader.walk(<root>) failed: ...`, so the phase is not a guess.
+- **An edge field path deeper than one dict level is refused instead of misread.**
+  `edges[].meta.to` fell through to the outer field and judged every quoted string inside
+  `edges`, producing a wall of findings about a field nobody declared. `unknown-rule` now
+  names the row once, and `edgeValues` returns nothing for a path it cannot read.
+- **A value carrying a quote is one value.** The id reader was a regex that stopped at the
+  backslash, so `He said "no"` arrived as fragments: the finding showed a truncated target,
+  and a reference that resolves could be read as dangling. It is a scanner now, and only an
+  escaped quote is unwrapped - every other backslash stays in the value, because a `.tres`
+  string may carry one literally.
+- **`graph --against` called a working declaration drift.** The diff compared the
+  declaration to what inference could see, and a host whose references are named
+  `to`/`related` has fields no naming rule resolves - so inference saw none of them and
+  every declared row read as removed. Measured on the field guide: `0 added, 23 removed,
+  0 changed` and exit 1, on a declaration that is correct. A row is now `removed` only
+  when the FIELD is gone from the tree; a row inference cannot see but that is still there
+  is reported as `invisible` (`--json` carries it) and is not drift. The evidence check
+  also demanded the declared target set be a SUBSET of the evidence, so a declaration
+  broader than today's data (`to` may point at any family, three are used so far) was
+  drift too; the evidence must now be COVERED by the declaration, which still catches a
+  row that misses where the values live.
+- **A declaration that is not JSON names itself.** `JSON.parse` reports a position and
+  nothing else, so `lint` and `doctor` failed with `Expected double-quoted property name
+  in JSON at position 22` on the one file every command needs, with no path to open. The
+  read is now wrapped once, for `lint`, `doctor`, `graph` and `graph --against`.
+- **The root guard reads the reader's suffix, not its label.** `reader.name` is a label and
+  may be prose (`json records`); the "root is one level too low" check compared family keys
+  against it, so for such a reader the guard never fired and a family directory read as a
+  plausible tree. `readTree` now carries a normalized `suffix` from `ext` (falling back to a
+  dot-free `name`), and the guard, the stem and the `empty-tree` message all read it.
+
 - **A non-`.tres` reader no longer has its records refused by a hardcoded `.tres`.** The
   `--reader` seam replaced the walker and the parser, but three format assumptions survived
   it. `filename-id-mismatch` compared a declared id to a stem stripped of `.tres`, so a host

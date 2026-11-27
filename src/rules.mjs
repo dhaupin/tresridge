@@ -54,8 +54,26 @@ export function nonIdValues(raw) {
  * puts the value in front of the checker, which is what lets the checker refuse it.
  */
 export function quotedValues(raw) {
+  const s = String(raw);
   const out = [];
-  for (const m of String(raw).matchAll(/"([^"]*)"/g)) out.push(m[1]);
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] !== '"') { i++; continue; }
+    let j = i + 1;
+    let value = '';
+    while (j < s.length && s[j] !== '"') {
+      // An escaped quote is part of the VALUE, not its end. The regex this replaces
+      // stopped at the backslash, so a value carrying a quote arrived as fragments -
+      // which both garbled the target in the finding and made a reference that DOES
+      // resolve read as dangling. Only the escaped quote is unwrapped; every other
+      // backslash stays in the value, because a `.tres` string may carry one literally.
+      if (s[j] === '\\' && s[j + 1] === '"') { value += '"'; j += 2; continue; }
+      value += s[j];
+      j++;
+    }
+    out.push(value);
+    i = j + 1;
+  }
   return out;
 }
 
@@ -170,6 +188,12 @@ export function edgeValues(record, edge) {
     const inner = record.nested?.get(parts[0]);
     return inner ? inner.get(parts[1]) || [] : [];
   }
+  // A path deeper than one dict level is NOT readable here, and reading the OUTER
+  // field instead judged every quoted string inside the container as if it were the
+  // edge - `edges[].meta.to` produced a finding per key in `edges`, none of them about
+  // `to`. `unknown-rule` names the path once; this returns nothing so the misdeclared
+  // edge cannot invent findings in the meantime.
+  if (parts.length > 2) return [];
   const raw = record.fields.get(parts[0]);
   return raw === undefined ? [] : [raw];
 }
@@ -271,6 +295,14 @@ export const RULES = [
         // Refuse the row, not its symptom.
         if (!ctx.knownFamilies.has(e?.family)) {
           out.push({ code: 'unknown-rule', record: `${e?.family}.${e?.field}`, detail: `edge row names family ${JSON.stringify(e?.family)}, which is not declared - the row checks nothing` });
+        }
+        // The standard reads a top-level field or ONE dict level (`entries[].item_id`).
+        // A deeper path used to fall through to the outer field and judge its every
+        // quoted string, so a typo in the path turned into a wall of findings about a
+        // field the author never named.
+        const depth = canonField(e?.field ?? '').split('.').length;
+        if (typeof e?.field === 'string' && e.field && depth > 2) {
+          out.push({ code: 'unknown-rule', record: `${e?.family}.${e?.field}`, detail: `edge ${e?.family}.${e?.field}: a field MUST be top-level or ONE dict level (\`entries\` or \`entries[].item_id\`), so this row reads nothing` });
         }
         if (!KINDS.includes(e?.kind)) {
           out.push({ code: 'unknown-rule', record: `${e?.family}.${e?.field}`, detail: `edge kind MUST be one of ${KINDS.join('/')}: ${JSON.stringify(e?.kind)}` });
@@ -437,7 +469,7 @@ export const RULES = [
         // family in the reference tree - a measured false positive.
         const prefix = fam?.idPrefix || '';
         const expected = prefix + r.id;
-        const stem = stemOf(r.file, ctx.tree.reader);
+        const stem = stemOf(r.file, ctx.tree.suffix || ctx.tree.reader);
         if (stem !== expected) {
           out.push({ code: 'filename-id-mismatch', record: r.file, detail: `declared id "${r.id}" under prefix "${prefix}" expects filename stem "${expected}", found "${stem}"` });
         }

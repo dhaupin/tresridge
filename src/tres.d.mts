@@ -33,6 +33,15 @@ export declare const tresReader: Reader;
 /** Why a `--reader` module is not usable as a reader, or null. */
 export declare function readerProblem(mod: unknown): string | null;
 
+/** The record suffix a reader names, normalized to `.ext`; '' when it names none. */
+export declare function suffixOf(reader: Reader | undefined): string;
+
+/** Why a `parse()` result is not a record, or null if it is. */
+export declare function parseProblem(result: unknown, file?: string): string | null;
+
+/** Why a `walk()` result is not a record list, or null if it is. */
+export declare function walkProblem(files: unknown, root: string): string | null;
+
 /** Read a record tree. `opts.reader` replaces the built-in `.tres` walk/parse pair. */
 export declare function readTree(root: string, opts?: { reader?: Reader }): Tree;
 

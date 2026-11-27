@@ -53,7 +53,7 @@
     "vocab:write": "node scripts/check-vocabulary.mjs --write",
     "docs:check": "node scripts/check-docs.mjs",
     "docs:write": "node scripts/check-docs.mjs --write",
-    "check:tool": "npm test && npm run test:types && npm run test:packs && npm run matrix:check && npm run vocab:check && npm run docs:check && npm run test:ship",
+    "check:tool": "npm test && npm run test:types && npm run test:packs && npm run test:reader && npm run matrix:check && npm run vocab:check && npm run docs:check && npm run test:ship",
     "check": "npm run check:tool && npm run site:check",
     "prepublishOnly": "npm run check",
     "ship": "node scripts/ship-from-download.cjs",
@@ -68,7 +68,8 @@
     "packs": "node scripts/run-packs.mjs",
     "lint:packs": "node bin/cli.mjs lint-packs --deep",
     "conform:packs": "packstruct audit-conformance . --loader \"node scripts/run-packs.mjs {packs}\"",
-    "og": "node web/scripts/og-image.mjs --mark-art web/public/og-image-alt.jpg --mark-crop 592,551,900,900"
+    "og": "node web/scripts/og-image.mjs --mark-art web/public/og-image-alt.jpg --mark-crop 592,551,900,900",
+    "test:reader": "node test/reader.mjs"
   },
   "keywords": [
     "tres",

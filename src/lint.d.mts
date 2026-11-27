@@ -117,6 +117,8 @@ export interface Tree {
   idsByFamily: Map<string, Set<string>>;
   /** The reader's name (`.tres` by default). */
   reader: string;
+  /** The reader's record suffix, normalized to `.ext` ('' when it names none). */
+  suffix: string;
 }
 
 /**

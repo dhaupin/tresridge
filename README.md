@@ -128,8 +128,9 @@ The grammar is format-independent. Only the walker and the parser were `.tres`, 
 
 ```js
 export const reader = {
-  name: '.json',
-  walk(root) { /* absolute record paths, recursively */ },
+  name: '.json',   // a label; `ext` is the suffix when the two differ
+  ext: '.json',
+  walk(root) { /* ABSOLUTE record paths, recursively */ },
   parse(file) { /* { id, idDeclared, scriptClass, fields, nested } */ },
 };
 ```
@@ -145,6 +146,18 @@ node bin/cli.mjs lint ./content --reader ./json-reader.mjs
 ```
 
 The module is refused by name if it does not export a reader with `walk` and `parse`, so a typo is a usage error rather than a tree that reads as empty.
+
+The rest of the contract is checked too, because a violation of it used to surface as an
+internal: `fields` that is not a `Map` produced `r.fields.keys is not a function`, and a
+`walk` that returned relative paths produced `ENOENT` on a path that was never a path. Both
+are now refused at the seam, naming the file, the value that came back, and the shape that
+was owed. A `parse` that **throws** is a record that cannot be read - it is reported as
+`unparseable-record` against that file, and a reader that throws for every record is
+refused once, naming the reader rather than the tree.
+
+An edge field is a top-level field or ONE dict level (`entries` or `entries[].item_id`).
+A deeper path is refused by name: it used to fall through to the outer field and judge
+every quoted string inside it.
 
 ### Types
 

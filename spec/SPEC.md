@@ -284,7 +284,7 @@ A host arms a pack with `--packs <dir>` (repeatable), or `opts.packs` in the lib
 tresridge is a **spec and its handler**, not a service. The relation it governs is data at rest - a declaration plus a tree - so the transport question is not "what protocol" but "what does a host exchange, and with what guarantee."
 
 - **The unit of exchange is the declaration** (`relations.json`) and the **verdict** (`lint --json`). Both are plain JSON. Any host in any language can produce one and consume the other.
-- **The verdict is a document, not a log.** `lint --json` emits `{ schemaVersion, families, records, edges, violations, warnings }` with stable codes from the vocabulary, so a consumer (a CI gate, a dashboard, another repo's doctor) reads a code, not a paragraph.
+- **The verdict is a document, not a log.** `lint --json` emits `{ schemaVersion, families, records, edges, violations, warnings }` with stable codes from the vocabulary, so a consumer (a CI gate, a dashboard, another repo's doctor) reads a code, not a paragraph. It leaves whole, too: the process drains stdout before it exits, so a consumer reading a pipe gets parseable JSON however many findings the tree produced.
 - **No network in the core.** The lint reads files and writes JSON. It opens no socket. A host that wants a fleet view composes verdicts; the composition is the host's, and a composer (a `govstruct`-shaped roll-up, a CI matrix) may exist without tresridge depending on it.
 - **Independence.** tresridge may be embedded (import `src/lint.mjs`), invoked (the CLI), or reimplemented (the vocabulary and the conformance cases are language-neutral). A host that reimplements it passes `conformance/cases/` and is conforming; it need not depend on this repo at all.
 

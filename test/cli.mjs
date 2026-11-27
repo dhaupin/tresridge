@@ -408,6 +408,18 @@ try {
     check('doctor does not leak a raw TypeError', !/is not a function|Cannot read/.test(r.err + r.out), (r.err + r.out).trim());
   }
 
+  // A declaration that is not JSON at all used to report the parser's position and
+  // nothing else, so the one file every command needs had no name in the error.
+  {
+    const d = make(CLEAN);
+    writeFileSync(join(d, 'relations.json'), '{ "schemaVersion": 1, oops }');
+    for (const cmd of ['lint', 'doctor']) {
+      const r = cli([cmd, d]);
+      expectCode(`${cmd} with a non-JSON declaration exits 2`, r, 2);
+      check(`${cmd} names the declaration file it could not read`, /declaration .*relations\.json is not valid JSON/.test(r.err), r.err.trim());
+    }
+  }
+
   // `graph` reads the declaration RAW (it may be the draft target), so it must
   // validate before dereferencing `edges` - the same named refusal `lint` and
   // `doctor` give, not a raw TypeError from the `.map`.
