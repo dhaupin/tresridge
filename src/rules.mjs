@@ -548,27 +548,34 @@ export const RULES = [
       // deployment, mixing fields produced 7 such refusals and every one was an inverse
       // pair. `nested`/`refs` edges are never followed: they name many ids, so a chain
       // through them has no single next record.
-      const walk = (node, field, targets, path, depth) => {
-        if (depth > ctx.tree.records.length) return null;
-        const rec = ctx.byId.get(node.family)?.get(node.id);
-        if (!rec) return null;
-        const next = idsIn(rec.fields.get(field) || '')[0];
-        if (!next) return null;
-        // Where the hop may land: the families the LANDED family declares for this SAME
-        // field when it declares them, otherwise the families the starting edge named.
-        // That is what carries a chain across a family boundary (`npcs.rival_id` ->
-        // `zones`, `zones.rival_id` -> `npcs`), and it is why a union target must be
-        // searched in order rather than tried family by family: an id that exists in two
-        // families names ONE record, and falling through to the second would read it as two.
-        const here = edgeFor.get(`${node.family}.${field}`);
-        const into = asList(here ? here.target : targets);
-        const t = into.find((f) => ctx.byId.get(f)?.has(next));
-        if (!t) return null;
-        const landed = { family: t, id: next, file: ctx.byId.get(t).get(next).file };
-        const at = path.findIndex((n) => n.family === landed.family && n.id === landed.id);
-        if (at >= 0) return { ring: path.slice(at), field };
-        return walk(landed, field, targets, [...path, landed], depth + 1);
-      };
+        const walk = (node, field, targets, path, depth) => {
+          if (depth > ctx.tree.records.length) return null;
+          const rec = ctx.byId.get(node.family)?.get(node.id);
+          if (!rec) return null;
+          // Every value is a hop, not only the first. Reading `idsIn(...)[0]` made the
+          // reported ring depend on the ORDER of the array: `zone_id = ["zn_a", "zn_x"]`
+          // closed a cycle while `["zn_x", "zn_a"]` - the same cycle - passed clean.
+          // `dangling-ref` already judges every value, so the two rules disagreed about
+          // what a multi-valued field means, and the disagreement was silent.
+          const here = edgeFor.get(`${node.family}.${field}`);
+          const into = asList(here ? here.target : targets);
+          for (const next of idsIn(rec.fields.get(field) || '')) {
+            // Where the hop may land: the families the LANDED family declares for this SAME
+            // field when it declares them, otherwise the families the starting edge named.
+            // That is what carries a chain across a family boundary (`npcs.rival_id` ->
+            // `zones`, `zones.rival_id` -> `npcs`), and it is why a union target must be
+            // searched in order rather than tried family by family: an id that exists in two
+            // families names ONE record, and falling through to the second would read it as two.
+            const t = into.find((f) => ctx.byId.get(f)?.has(next));
+            if (!t) continue;
+            const landed = { family: t, id: next, file: ctx.byId.get(t).get(next).file };
+            const at = path.findIndex((n) => n.family === landed.family && n.id === landed.id);
+            if (at >= 0) return { ring: path.slice(at), field };
+            const found = walk(landed, field, targets, [...path, landed], depth + 1);
+            if (found) return found;
+          }
+          return null;
+        };
       for (const e of cycleEdges) {
         const field = canonField(e.field);
         const pool = ctx.byId.get(e.family);
