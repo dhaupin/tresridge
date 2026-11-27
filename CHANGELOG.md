@@ -8,6 +8,18 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **A non-`.tres` reader no longer has its records refused by a hardcoded `.tres`.** The
+  `--reader` seam replaced the walker and the parser, but three format assumptions survived
+  it. `filename-id-mismatch` compared a declared id to a stem stripped of `.tres`, so a host
+  whose records are `npc_smith.json` was told its id `npc_smith` disagreed with a filename
+  stem of `npc_smith.json` - every record refused, in every family, on every run. That is the
+  transport the seam exists for, refused by the seam, and it is why a JSON host had to report
+  `idDeclared: false` to get a verdict at all. The stem is now measured in the reader's suffix
+  (`.json` and `json` both read as the same suffix; a suffix that does not match the file falls
+  back to the last extension). `tresridge graph` inferred a family's `idPrefix` from the same
+  hardcoded stem, so a JSON host's inferred prefix ended in `.json`; it reads the reader's
+  suffix too. The `empty-tree` rule's detail also names the reader's suffix, which the 1.1.0
+  note above claimed for `readTree`'s own message but not for the rule's.
 - **`tresridge graph` refuses a malformed declaration instead of leaking a `TypeError`.** The
   declaration is read raw on this path (it may be the draft target rather than a lint input),
   and the residue filter dereferenced `known.edges` without checking it. A hand-edited

@@ -205,7 +205,11 @@ function inferPrefix(tree, family) {
   let prefix = null;
   for (const r of tree.records) {
     if (r.family !== family || !r.idDeclared) continue;
-    const stem = r.file.split('/').pop().replace(/\.tres$/, '');
+    // The stem is measured in the READER's format, not `.tres`: a JSON host would
+    // otherwise infer a prefix ending in `.json` for every family it declares ids in.
+    const base = r.file.split('/').pop();
+    const ext = tree.reader && !tree.reader.startsWith('.') ? `.${tree.reader}` : tree.reader || '.tres';
+    const stem = base.endsWith(ext) ? base.slice(0, -ext.length) : base.replace(/\.[^./]+$/, '');
     if (!stem.endsWith(r.id)) return '';
     const p = stem.slice(0, stem.length - r.id.length);
     if (prefix === null) prefix = p;

@@ -211,8 +211,24 @@ export function buildContext(tree, decl) {
   return { tree, decl, declared, knownFamilies, declFamily, byFamily, byId, edgeOf };
 }
 
-/** The filename stem is the record's id (SPEC section 3). */
-const stemOf = (file) => file.split('/').pop().replace(/\.tres$/, '');
+/**
+ * The filename stem is the record's id (SPEC section 3).
+ *
+ * The suffix is the READER's, not `.tres`: the grammar is format-independent since
+ * `--reader` (section 13), so a host whose records are `npc_smith.json` must have
+ * `npc_smith` compared, not `npc_smith.json`. Stripping a hardcoded `.tres` there
+ * refused every record of every non-`.tres` tree that declares ids - the seam's
+ * own transport, refused by the one rule that compares a stem to an id.
+ */
+const stemOf = (file, suffix = '.tres') => {
+  const base = file.split('/').pop();
+  // A reader names its format either way (`.json` or `json`); both mean the same
+  // suffix, and a suffix that does not match the file falls back to the last
+  // extension rather than returning a stem that still carries one.
+  const ext = suffix && !suffix.startsWith('.') ? `.${suffix}` : suffix;
+  if (ext && base.endsWith(ext)) return base.slice(0, -ext.length);
+  return base.replace(/\.[^./]+$/, '');
+};
 
 // ---------------------------------------------------------------------------
 // The registry
@@ -294,7 +310,7 @@ export const RULES = [
       // A clean verdict over zero records is vacuous, and vacuous is the shape a
       // silent pass takes. Refuse it so a wrong root cannot read as a pass.
       if (ctx.tree.records.length) return [];
-      return [{ code: 'empty-tree', record: ctx.tree.root || '(tree)', detail: `no .tres records under the root - a clean verdict here would be vacuous` }];
+      return [{ code: 'empty-tree', record: ctx.tree.root || '(tree)', detail: `no ${ctx.tree.reader || '.tres'} records under the root - a clean verdict here would be vacuous` }];
     },
   },
   {
@@ -421,8 +437,9 @@ export const RULES = [
         // family in the reference tree - a measured false positive.
         const prefix = fam?.idPrefix || '';
         const expected = prefix + r.id;
-        if (stemOf(r.file) !== expected) {
-          out.push({ code: 'filename-id-mismatch', record: r.file, detail: `declared id "${r.id}" under prefix "${prefix}" expects filename stem "${expected}", found "${stemOf(r.file)}"` });
+        const stem = stemOf(r.file, ctx.tree.reader);
+        if (stem !== expected) {
+          out.push({ code: 'filename-id-mismatch', record: r.file, detail: `declared id "${r.id}" under prefix "${prefix}" expects filename stem "${expected}", found "${stem}"` });
         }
       }
       return out;
