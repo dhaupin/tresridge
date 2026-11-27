@@ -4,6 +4,8 @@ The `.tres` relation standard. **One edge grammar + one resolution contract, man
 
 **Core law:** declare the edge, resolve or refuse. The edge declaration is the shared-facts column; everything else about a record is host-owned and never refused.
 
+**Transport, today:** records are read from `.tres` files. The grammar is format-independent - a family is a directory, an id is a filename stem, an edge is a field - but the reader is not yet a seam, so a host that keeps its records in JSON or its own loader format has to convert to lint. That is a stated limit, not an oversight; see [#23](https://github.com/dhaupin/tresridge/issues/23).
+
 **New here?** Start with [`labs/prd-tresridge.md`](https://github.com/dhaupin/tresridge/blob/main/labs/prd-tresridge.md) - the product contract. It carries the frozen v1 grammar (family + edge tables, five edge kinds, the resolution rule), the general/reference split, and the conformance CLI surface.
 
 This repo ships the normative spec ([`spec/SPEC.md`](spec/SPEC.md)) plus a zero-dependency lint CLI that kills the worst relation-authoring class at author time: a field that points at a record which does not exist, or a `_id` field no one declared. Every host that keeps a tree of records uses the same core check.
