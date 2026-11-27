@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-27
+
+Two additive features: the grammar stops being tied to `.tres` on disk, and the API
+stops being `any` in TypeScript. Neither changes an existing tree's verdict, so this
+is a minor cut.
+
 ### Added
 
 - **`--reader <module>`: lint a tree whose records are not `.tres`.** The grammar was
