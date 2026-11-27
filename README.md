@@ -129,7 +129,11 @@ export const reader = {
 };
 ```
 
-`fields` is a `Map` of a record's top-level values, and `nested` is a `Map` of outer key to `Map` of inner key to values, which is what a nested edge (`entries.item_id`) reads. Everything downstream - families, ids, edges, every rule - is unchanged, so a dangling reference in a JSON tree is the same refusal as one in a `.tres` tree.
+`fields` is a `Map` of a record's top-level fields, and `nested` is a `Map` of outer key to `Map` of inner key to values, which is what a nested edge (`entries.item_id`) reads.
+
+The values in both are **raw source text, quotes included** - `'"zn_a"'`, not `'zn_a'` - because that is what the `.tres` parser yields and the id reader scans for quoted values. This matters more than it looks: a reader that returns bare strings parses fine, finds no quoted values, and reports **0 edges and a clean lint**. Nothing errors. So build the value with `JSON.stringify(id)`, and check that `graph` sees the edges you expect before trusting a clean run.
+
+Everything downstream - families, ids, edges, every rule - is unchanged, so a dangling reference in a JSON tree is the same refusal as one in a `.tres` tree.
 
 ```bash
 node bin/cli.mjs lint ./content --reader ./json-reader.mjs

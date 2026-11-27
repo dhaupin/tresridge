@@ -878,6 +878,76 @@ export const reader = {
 
     const missing = cli(['lint', dir, '--reader', join(dir, 'nope.mjs')]);
     check('a missing --reader module is refused', missing.code === 2 && /not found/.test(missing.err), missing.err.trim());
+
+    // A nested edge reads `nested`, and its values must be RAW source text. A reader
+    // that hands back bare strings parses fine, matches no quoted value, and reports
+    // 0 edges with a clean exit - a silent pass. Hold both halves of that.
+    const nestedReader = `
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, basename } from 'node:path';
+const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+export const reader = {
+  name: '.json',
+  walk(root) {
+    const out = [];
+    const visit = (d) => {
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        const f = join(d, e.name);
+        if (e.isDirectory()) visit(f);
+        else if (e.name.endsWith('.json') && e.name !== 'relations.json') out.push(f);
+      }
+    };
+    visit(root);
+    return out.sort();
+  },
+  parse(file) {
+    const doc = JSON.parse(readFileSync(file, 'utf8'));
+    const fields = new Map([['term', JSON.stringify(doc.term)]]);
+    const nested = new Map();
+    if (doc.edges?.length) nested.set('edges', new Map([['to', doc.edges.map((e) => JSON.stringify(slug(e.to)))]]));
+    return { id: basename(file, '.json'), idDeclared: false, scriptClass: '', fields, nested };
+  },
+};
+`;
+    const NESTED_DECL = JSON.stringify({
+      schemaVersion: 1,
+      families: [
+        { key: 'fallacies', schema: '', idPrefix: '' },
+        { key: 'species', schema: '', idPrefix: '' },
+      ],
+      edges: [{ family: 'species', field: 'edges.to', target: 'fallacies', kind: 'nested', required: true }],
+    }, null, 2) + '\n';
+
+    const nestedDir = tree({
+      'reader.mjs': nestedReader,
+      'relations.json': NESTED_DECL,
+      'fallacies/ad-hominem.json': '{ "term": "Ad hominem", "edges": [] }\n',
+      'species/freetard.json': '{ "term": "Freetard", "edges": [{ "rel": "commits", "to": "Ad hominem" }] }\n',
+    });
+    dirs.push(nestedDir);
+    const nestedOk = cli(['lint', nestedDir, '--reader', join(nestedDir, 'reader.mjs')]);
+    check('a nested edge resolves through a reader', nestedOk.code === 0 && /1 edges/.test(nestedOk.out), nestedOk.out.trim());
+
+    const nestedBroken = tree({
+      'reader.mjs': nestedReader,
+      'relations.json': NESTED_DECL,
+      'fallacies/ad-hominem.json': '{ "term": "Ad hominem", "edges": [] }\n',
+      'species/freetard.json': '{ "term": "Freetard", "edges": [{ "rel": "commits", "to": "No Such Fallacy" }] }\n',
+    });
+    dirs.push(nestedBroken);
+    const nestedBad = cli(['lint', nestedBroken, '--reader', join(nestedBroken, 'reader.mjs')]);
+    check('a dangling nested edge in a JSON tree fails', nestedBad.code === 1 && /dangling-ref/.test(nestedBad.out), nestedBad.out.trim());
+
+    // The silent-pass guard: unquoted values must NOT read as resolved edges.
+    const unquotedDir = tree({
+      'reader.mjs': nestedReader.replace('JSON.stringify(slug(e.to))', 'slug(e.to)'),
+      'relations.json': NESTED_DECL,
+      'fallacies/ad-hominem.json': '{ "term": "Ad hominem", "edges": [] }\n',
+      'species/freetard.json': '{ "term": "Freetard", "edges": [{ "rel": "commits", "to": "Ad hominem" }] }\n',
+    });
+    dirs.push(unquotedDir);
+    const unquoted = cli(['lint', unquotedDir, '--reader', join(unquotedDir, 'reader.mjs')]);
+    check('unquoted reader values do not read as resolved edges', !/1 edges/.test(unquoted.out), unquoted.out.trim());
   }
 
   // --- the package API surface (issue #24) ---------------------------------
