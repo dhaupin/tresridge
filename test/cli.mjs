@@ -408,6 +408,19 @@ try {
     check('doctor does not leak a raw TypeError', !/is not a function|Cannot read/.test(r.err + r.out), (r.err + r.out).trim());
   }
 
+  // `graph` reads the declaration RAW (it may be the draft target), so it must
+  // validate before dereferencing `edges` - the same named refusal `lint` and
+  // `doctor` give, not a raw TypeError from the `.map`.
+  {
+    const d = make(CLEAN);
+    writeFileSync(join(d, 'relations.json'), JSON.stringify({ schemaVersion: 1, families: ['zones', 'npcs'], edges: {} }));
+    const r = cli(['graph', d, '--decl', join(d, 'relations.json')]);
+    expectCode('graph with a non-array edges declaration exits 1', r, 1);
+    check('graph reports a non-array edges declaration as DECL', /DECL .*edges MUST be an array/.test(r.err), r.err.trim() || r.out.trim());
+    check('graph does not leak a raw TypeError on a malformed declaration', !/is not a function|Cannot read/.test(r.err + r.out), (r.err + r.out).trim());
+  }
+
+
   // -- graph --against -------------------------------------------------------
   {
     const d = make(CLEAN);

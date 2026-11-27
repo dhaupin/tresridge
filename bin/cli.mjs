@@ -334,6 +334,14 @@ try {
       let reportable = residue.probable || [];
       if (existsSync(knownPath) && residue.probable) {
         const known = JSON.parse(readFileSync(knownPath, 'utf8'));
+        // The declaration is read RAW here (it may be the draft target, not a lint
+        // input), so validate it before dereferencing `edges`. Without this a
+        // hand-edited declaration turns a named shape refusal into a raw TypeError.
+        const knownErrors = validateDeclaration(known, { vocabulary: mergedVocabulary });
+        if (knownErrors.length) {
+          for (const e of knownErrors) console.error(`  DECL ${e}`);
+          process.exit(1);
+        }
         const named = new Set((known.edges || []).map((e) => `${e.family}.${String(e.field).replace(/\[\]/g, '')}`));
         reportable = residue.probable.filter((p) => !named.has(`${p.family}.${p.field}`));
       }
