@@ -1,6 +1,6 @@
 {
   "name": "tresridge",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "description": "The .tres relation standard: one edge grammar, one resolution contract, many hosts.",
   "type": "module",
   "exports": {

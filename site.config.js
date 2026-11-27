@@ -24,7 +24,7 @@ export default {
   // --- identity -----------------------------------------------------------
   name: 'tresridge',
   wordmark: { accent: 'tres', rest: 'ridge' },
-  badge: 'v0.9.0',
+  badge: 'v1.0.0',
   tagline: 'Declare the edge, resolve or refuse.',
   description:
     'The .tres relation standard: point tresridge at the tree you already have, and it tells you what you have, what dangles, and what is undeclared.',

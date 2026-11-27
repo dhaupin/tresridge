@@ -4,7 +4,11 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-10-28
+
+The first governed cut. The grammar is frozen (SPEC v1), the release lane moves to
+OIDC with provenance attestation, and the cycle rule stops depending on the order of
+an array.
 
 ### Fixed
 
@@ -14,6 +18,14 @@ All notable changes to this project are documented here. The format is based on
   point and reports the loop, which is what SPEC §7 always described. A cycle that spans
   families, or whose ids collide across families, now has a conformance case each
   (`cycle-across-families`, `cycle-same-id-across-families`).
+
+- **A cycle through any value of a multi-valued `ref` is found, not only the first.**
+  `cycle` read `idsIn(...)[0]` while `dangling-ref` in the same module judged every
+  value, so `zone_id = ["zn_a", "zn_x"]` reported a loop and `["zn_x", "zn_a"]` - the
+  same loop - reported 0 violations. Order alone decided the verdict. The walk now
+  branches over every id. Latent on the reference deployment (0 multi-valued `ref`
+  fields across 1097 records), and the verdict there is unchanged: 0 violations over
+  2215 edges.
 
 - **`graph --against` answers a `probable` field against the declaration.** The residue
   list is the on-ramp: it names fields inference could not resolve so a human can declare

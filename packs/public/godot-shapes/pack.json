@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "name": "godot-shapes",
   "description": "The Godot reference deployment's own law, layered on the shared grammar. A family that declares an idPrefix is asserting every record in it carries an explicit id line; this pack refuses a record that relies on its filename instead. Not general enough for the spec, which is the point of a pack: the grammar stays frozen and the host adds its law.",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "entry": "index.mjs",
   "implements": "packstruct@1",
   "requires": ["tres-tree"],

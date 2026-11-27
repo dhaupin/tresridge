@@ -17,6 +17,12 @@
  *   2. THE PROSE. The block between the BEGIN/END markers in README.md is generated
  *      from that measurement. `--write` regenerates it; the default refuses drift.
  *
+ *   3. THE LINKS. README.md is the npm package page, but npm ships only `files` from
+ *      package.json - so a relative link to anything outside that set renders as a 404
+ *      to every visitor of the registry page, while working perfectly in the checkout.
+ *      Three did (`labs/`, `labs/prd-tresridge.md`, `conformance/fixture/`). This cannot
+ *      be caught by reading the README, only by comparing it against `files`.
+ *
  * The reference deployment (a host's own tree) is deliberately NOT gated: this repo
  * cannot see it, and pinning a number it cannot check is how the drift started. Those
  * figures live in `labs/` as a dated snapshot instead.
@@ -106,10 +112,27 @@ for (const rel of targets) {
   else problems.push(`${rel} publishes numbers that disagree with the fixture (run \`node scripts/check-docs.mjs --write\`)`);
 }
 
+// README.md is the registry page. npm publishes only `files`, so a relative link to
+// anything else is a 404 for every visitor while working in the checkout. Compared
+// against `files` rather than a hand list, because a hand list is what drifts.
+{
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+  const shipped = new Set(pkg.files || []);
+  const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
+  for (const [, target] of readme.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
+    if (/^(https?:|#|mailto:)/.test(target)) continue;
+    const top = target.split('#')[0].replace(/^\.\//, '').split('/')[0];
+    if (top && !shipped.has(top)) {
+      problems.push(`README.md links \`${target}\`, which \`files\` does not ship - a 404 on npmjs.com (use an absolute GitHub URL)`);
+    }
+  }
+}
+
+
 if (problems.length) {
   console.error('\n  DOCS DRIFT:');
   for (const p of problems) console.error(`    - ${p}`);
-  console.error('\n  Published numbers are measured, never remembered.');
+  console.error('\n  Published numbers are measured, never remembered; published links must ship.');
   process.exit(1);
 }
 
