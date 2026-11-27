@@ -1,6 +1,6 @@
 {
   "name": "tresridge",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "The .tres relation standard: one edge grammar, one resolution contract, many hosts.",
   "type": "module",
   "types": "./src/lint.d.mts",

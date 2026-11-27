@@ -14,7 +14,7 @@ Point tresridge at the tree you already have. It tells you what you have, what d
 
 The [CLI](/tresridge/cli/) page covers the verbs that read, derive, and judge a tree.
 
-The package page is [npmjs.com/package/tresridge](https://www.npmjs.com/package/tresridge) (1.0.0 is published, so `npx tresridge` resolves).
+The package page is [npmjs.com/package/tresridge](https://www.npmjs.com/package/tresridge) (published to npm, so `npx tresridge` resolves).
 
 ## The one-line pitch
 
