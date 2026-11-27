@@ -796,6 +796,160 @@ try {
 
   }
 
+  // --- the transport seam (issue #23) ---------------------------------------
+  // The grammar is format-independent; only the walker and parser were `.tres`. A host
+  // whose records live in JSON had to convert its whole tree first, which meant linting
+  // a copy that can drift from the real records. `--reader` supplies the pair.
+  {
+    const readerSrc = `
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, basename } from 'node:path';
+export const reader = {
+  name: '.json',
+  ext: '.json',
+  walk(root) {
+    const out = [];
+    const visit = (dir) => {
+      let entries;
+      try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const e of entries) {
+        const full = join(dir, e.name);
+        if (e.isDirectory()) visit(full);
+        else if (e.name.endsWith('.json') && e.name !== 'relations.json') out.push(full);
+      }
+    };
+    visit(root);
+    return out.sort();
+  },
+  parse(file) {
+    const doc = JSON.parse(readFileSync(file, 'utf8'));
+    const fields = new Map();
+    const targets = (doc.edges || []).map((e) => e.to.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+    if (targets.length) fields.set('edges', JSON.stringify(targets));
+    return { id: basename(file, '.json'), idDeclared: false, scriptClass: '', fields, nested: new Map() };
+  },
+};
+`;
+    const JSON_DECL = JSON.stringify({
+      schemaVersion: 1,
+      families: [
+        { key: 'species', schema: '', idPrefix: '' },
+        { key: 'fallacies', schema: '', idPrefix: '' },
+      ],
+      edges: [{ family: 'species', field: 'edges', target: 'fallacies', kind: 'refs', required: true }],
+    }, null, 2) + '\n';
+
+    const dir = tree({
+      'reader.mjs': readerSrc,
+      'relations.json': JSON_DECL,
+      'fallacies/ad-hominem.json': '{ "term": "Ad hominem", "edges": [] }\n',
+      'species/freetard.json': '{ "term": "Freetard", "edges": [{ "rel": "commits", "to": "Ad hominem" }] }\n',
+    });
+    dirs.push(dir);
+    const readerPath = join(dir, 'reader.mjs');
+
+    // Without the seam the same tree is invisible - this is the #23 repro.
+    const bare = cli(['doctor', dir]);
+    check('a JSON tree without --reader is empty-tree', bare.code === 2 && /empty-tree/.test(bare.err), bare.err.trim());
+
+    const clean = cli(['lint', dir, '--reader', readerPath]);
+    check('a JSON tree lints clean through --reader', clean.code === 0, clean.out.trim() + clean.err.trim());
+    check('the JSON tree reports its real families and records', /2 families, 2 records/.test(clean.out), clean.out.trim());
+    check('the JSON tree resolves a real edge', /1 edges/.test(clean.out), clean.out.trim());
+
+    // A clean pass proves nothing on its own: the seam must still SEE a broken edge.
+    const broken = tree({
+      'reader.mjs': readerSrc,
+      'relations.json': JSON_DECL,
+      'fallacies/ad-hominem.json': '{ "term": "Ad hominem", "edges": [] }\n',
+      'species/freetard.json': '{ "term": "Freetard", "edges": [{ "rel": "commits", "to": "No Such Fallacy" }] }\n',
+    });
+    dirs.push(broken);
+    const bad = cli(['lint', broken, '--reader', join(broken, 'reader.mjs')]);
+    check('a dangling edge in a JSON tree fails the lint', bad.code === 1, bad.out.trim());
+    check('the dangling JSON edge is named', /dangling-ref/.test(bad.out), bad.out.trim());
+
+    // The reader is a contract, so a module that does not honour it is refused by name
+    // rather than failing somewhere deep in the walk.
+    const halfReader = tree({ 'r.mjs': 'export const reader = { name: ".json" };\n' });
+    dirs.push(halfReader);
+    const half = cli(['lint', dir, '--reader', join(halfReader, 'r.mjs')]);
+    check('a reader without walk/parse is refused', half.code === 2 && /--reader module/.test(half.err), half.err.trim());
+
+    const missing = cli(['lint', dir, '--reader', join(dir, 'nope.mjs')]);
+    check('a missing --reader module is refused', missing.code === 2 && /not found/.test(missing.err), missing.err.trim());
+
+    // A nested edge reads `nested`, and its values must be RAW source text. A reader
+    // that hands back bare strings parses fine, matches no quoted value, and reports
+    // 0 edges with a clean exit - a silent pass. Hold both halves of that.
+    const nestedReader = `
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, basename } from 'node:path';
+const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+export const reader = {
+  name: '.json',
+  walk(root) {
+    const out = [];
+    const visit = (d) => {
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        const f = join(d, e.name);
+        if (e.isDirectory()) visit(f);
+        else if (e.name.endsWith('.json') && e.name !== 'relations.json') out.push(f);
+      }
+    };
+    visit(root);
+    return out.sort();
+  },
+  parse(file) {
+    const doc = JSON.parse(readFileSync(file, 'utf8'));
+    const fields = new Map([['term', JSON.stringify(doc.term)]]);
+    const nested = new Map();
+    if (doc.edges?.length) nested.set('edges', new Map([['to', doc.edges.map((e) => JSON.stringify(slug(e.to)))]]));
+    return { id: basename(file, '.json'), idDeclared: false, scriptClass: '', fields, nested };
+  },
+};
+`;
+    const NESTED_DECL = JSON.stringify({
+      schemaVersion: 1,
+      families: [
+        { key: 'fallacies', schema: '', idPrefix: '' },
+        { key: 'species', schema: '', idPrefix: '' },
+      ],
+      edges: [{ family: 'species', field: 'edges.to', target: 'fallacies', kind: 'nested', required: true }],
+    }, null, 2) + '\n';
+
+    const nestedDir = tree({
+      'reader.mjs': nestedReader,
+      'relations.json': NESTED_DECL,
+      'fallacies/ad-hominem.json': '{ "term": "Ad hominem", "edges": [] }\n',
+      'species/freetard.json': '{ "term": "Freetard", "edges": [{ "rel": "commits", "to": "Ad hominem" }] }\n',
+    });
+    dirs.push(nestedDir);
+    const nestedOk = cli(['lint', nestedDir, '--reader', join(nestedDir, 'reader.mjs')]);
+    check('a nested edge resolves through a reader', nestedOk.code === 0 && /1 edges/.test(nestedOk.out), nestedOk.out.trim());
+
+    const nestedBroken = tree({
+      'reader.mjs': nestedReader,
+      'relations.json': NESTED_DECL,
+      'fallacies/ad-hominem.json': '{ "term": "Ad hominem", "edges": [] }\n',
+      'species/freetard.json': '{ "term": "Freetard", "edges": [{ "rel": "commits", "to": "No Such Fallacy" }] }\n',
+    });
+    dirs.push(nestedBroken);
+    const nestedBad = cli(['lint', nestedBroken, '--reader', join(nestedBroken, 'reader.mjs')]);
+    check('a dangling nested edge in a JSON tree fails', nestedBad.code === 1 && /dangling-ref/.test(nestedBad.out), nestedBad.out.trim());
+
+    // The silent-pass guard: unquoted values must NOT read as resolved edges.
+    const unquotedDir = tree({
+      'reader.mjs': nestedReader.replace('JSON.stringify(slug(e.to))', 'slug(e.to)'),
+      'relations.json': NESTED_DECL,
+      'fallacies/ad-hominem.json': '{ "term": "Ad hominem", "edges": [] }\n',
+      'species/freetard.json': '{ "term": "Freetard", "edges": [{ "rel": "commits", "to": "Ad hominem" }] }\n',
+    });
+    dirs.push(unquotedDir);
+    const unquoted = cli(['lint', unquotedDir, '--reader', join(unquotedDir, 'reader.mjs')]);
+    check('unquoted reader values do not read as resolved edges', !/1 edges/.test(unquoted.out), unquoted.out.trim());
+  }
+
   // --- the package API surface (issue #24) ---------------------------------
   // `exports` is the public API: a host that wants lint-on-save must be able to
   // `import 'tresridge'`, not reach into `src/`. These spawn a real resolver
@@ -810,11 +964,15 @@ try {
     check('the spec is exported', pkg.exports?.['./spec/*'] !== undefined, 'no "./spec/*" entry');
 
     // Every exports target must be a file that actually exists - a typo here is
-    // an import that fails only after publish.
-    for (const [sub, rel] of Object.entries(pkg.exports || {}).filter(([k]) => !k.includes('*'))) {
-      let exists = true;
-      try { readFileSync(join(ROOT, rel)); } catch { exists = false; }
-      check(`exports target for "${sub}" exists`, exists, `${rel} missing`);
+    // an import that fails only after publish. A subpath is a bare string or a
+    // { types, default } condition object (issue #24), so read both forms.
+    const targetsOf = (v) => (typeof v === 'string' ? [v] : Object.values(v));
+    for (const [sub, val] of Object.entries(pkg.exports || {}).filter(([k]) => !k.includes('*'))) {
+      for (const rel of targetsOf(val)) {
+        let exists = true;
+        try { readFileSync(join(ROOT, rel)); } catch { exists = false; }
+        check(`exports target for "${sub}" exists`, exists, `${rel} missing`);
+      }
     }
 
     // The real proof: resolve by package name from outside the repo, the way a

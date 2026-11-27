@@ -247,8 +247,37 @@ export function estimateHeap(recordCount, sourceBytes) {
   return recordCount * HEAP_PER_RECORD + sourceBytes * HEAP_PER_SOURCE_BYTE;
 }
 
-export function readTree(root) {
-  const files = walkTres(root);
+/**
+ * The built-in reader. A reader is `{ name, ext, walk(root), parse(file) }`, where
+ * `walk` returns absolute record paths and `parse` returns
+ * `{ id, idDeclared, scriptClass, fields, nested, unparseable }` with `fields` and
+ * `nested` as Maps. Everything above this layer - families, ids, edges, the rules - is
+ * format-independent, so a host with its own record format supplies a reader instead of
+ * converting its tree to `.tres` first (and linting a copy that can drift from the real
+ * records).
+ *
+ * Exported as an object rather than left implicit so `--reader` has something to fall
+ * back to, and so the contract is readable in one place.
+ */
+export const tresReader = {
+  name: '.tres',
+  ext: '.tres',
+  walk: walkTres,
+  parse: parseTres,
+};
+
+/** Why a `--reader` module is not usable as a reader, or null. */
+export function readerProblem(mod) {
+  const r = mod?.reader || mod?.default;
+  if (!r || typeof r !== 'object') return 'must export a `reader` object (or a default object)';
+  if (typeof r.walk !== 'function') return '`reader.walk(root)` must be a function';
+  if (typeof r.parse !== 'function') return '`reader.parse(file)` must be a function';
+  return null;
+}
+
+export function readTree(root, opts = {}) {
+  const reader = opts.reader || tresReader;
+  const files = reader.walk(root);
   // Refuse before reading, not during: a tree that will not fit is cheapest to reject
   // while nothing has been parsed. The estimate needs the source size, so it costs one
   // stat per file - 2.7s over 743k files, against the ~35s the read itself takes.
@@ -259,14 +288,14 @@ export function readTree(root) {
 
   const ceiling = Number(process.env.TRES_MAX_RECORDS) || 0;
   if (ceiling && files.length > ceiling) {
-    throw new Error(`${files.length} .tres files under ${root} exceeds the ${ceiling}-record ceiling (TRES_MAX_RECORDS)`);
+    throw new Error(`${files.length} ${reader.name} files under ${root} exceeds the ${ceiling}-record ceiling (TRES_MAX_RECORDS)`);
   }
 
   let sourceBytes = 0;
   for (const file of files) sourceBytes += statSync(file).size;
   const predicted = estimateHeap(files.length, sourceBytes);
   if (predicted > budget) {
-    throw new Error(`${files.length} .tres files under ${root} hold ${Math.round(sourceBytes / 1048576)}MB of source, `
+    throw new Error(`${files.length} ${reader.name} files under ${root} hold ${Math.round(sourceBytes / 1048576)}MB of source, `
       + `which this tool reads into about ${Math.round(predicted / 1048576)}MB of heap; the limit here is ${Math.round(heapLimit / 1048576)}MB. `
       + `Raise --max-old-space-size, or lint the tree in parts`);
   }
@@ -279,7 +308,7 @@ export function readTree(root) {
   for (const file of files) {
     const rel = relative(root, file).split('\\').join('/');
     const family = rel.split('/')[0];
-    const { id, idDeclared, scriptClass, fields, nested, unparseable } = parseTres(file);
+    const { id, idDeclared, scriptClass, fields, nested, unparseable } = reader.parse(file);
     // The key is how a record is looked up in `byFamily`. A DECLARED id is unique or
     // the tree is refused (`duplicate-record-id`), so the id alone keys it. An id-less
     // record's stem is NOT unique - `roots/a/environment.tres` and
@@ -316,7 +345,7 @@ export function readTree(root) {
     dirs: [...(dirsByFamily.get(key) || [])].sort(),
   }));
 
-  return { root, families, records, idsByFamily };
+  return { root, families, records, idsByFamily, reader: reader.name };
 }
 
 /**
@@ -340,18 +369,19 @@ export function rootProblem(tree, root) {
   if (!records.length) {
     return {
       code: 'empty-tree',
-      detail: `no .tres files under ${root} - nothing to check`,
+      detail: `no ${tree.reader || '.tres'} records under ${root} - nothing to check`,
       hints: [],
     };
   }
 
-  // A family key carrying a `.tres` suffix means the root IS a family directory: its
+  // A family key carrying a record suffix means the root IS a family directory: its
   // children are records, not families.
-  const fileKeys = families.filter((f) => f.key.endsWith('.tres'));
+  const ext = tree.reader || '.tres';
+  const fileKeys = families.filter((f) => f.key.endsWith(ext));
   if (fileKeys.length) {
     return {
       code: 'not-a-tree-root',
-      detail: `the root's children are records, not families (${fileKeys.length} family key(s) end in .tres) - pass the directory whose children are family directories`,
+      detail: `the root's children are records, not families (${fileKeys.length} family key(s) end in ${ext}) - pass the directory whose children are family directories`,
       hints: [dirname(root)],
     };
   }

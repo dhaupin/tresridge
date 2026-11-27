@@ -41,6 +41,7 @@ node bin/cli.mjs graph <tree> --out rel.json    # write the draft
 node bin/cli.mjs doctor <tree>                  # the summary pass: families, edges, residue, violations
 node bin/cli.mjs rules                          # the refusal vocabulary this lint carries
 node bin/cli.mjs lint <tree> --rules p.mjs      # add a host profile's rules
+node bin/cli.mjs lint <tree> --reader r.mjs     # read records in a host format, not .tres
 node bin/cli.mjs --version                      # the packaged version
 ```
 
@@ -113,6 +114,44 @@ Two laws bind a host rule: it may not invent a code (the code MUST be in the voc
 A **pack** is the durable form: a directory with a `pack.json` and an entry module, per [packstruct](https://github.com/dhaupin/packstruct) v1. Its `checks[]` are rules, its `vocabulary` is merged before its rules are judged, and every finding it produces is stamped with the pack that made it. `packs/public/godot-shapes/` is the reference shape and it ships in this package; from a checkout, `node bin/cli.mjs lint <tree> --packs ./packs/public` is the whole install. (Once published, `npx tresridge lint <tree> --packs node_modules/tresridge/packs/public` is the same thing.)
 
 `--packs` is repeatable, and a pack declaring a `requires` token the run root does not provide is skipped **by name**, never silently.
+
+### Linting a tree that is not `.tres`
+
+The grammar is format-independent. Only the walker and the parser were `.tres`, so a host whose records live in another format had to convert its tree first - which means linting a copy that can drift from the real records.
+
+`--reader <module>` supplies the pair instead:
+
+```js
+export const reader = {
+  name: '.json',
+  walk(root) { /* absolute record paths, recursively */ },
+  parse(file) { /* { id, idDeclared, scriptClass, fields, nested } */ },
+};
+```
+
+`fields` is a `Map` of a record's top-level fields, and `nested` is a `Map` of outer key to `Map` of inner key to values, which is what a nested edge (`entries.item_id`) reads.
+
+The values in both are **raw source text, quotes included** - `'"zn_a"'`, not `'zn_a'` - because that is what the `.tres` parser yields and the id reader scans for quoted values. This matters more than it looks: a reader that returns bare strings parses fine, finds no quoted values, and reports **0 edges and a clean lint**. Nothing errors. So build the value with `JSON.stringify(id)`, and check that `graph` sees the edges you expect before trusting a clean run.
+
+Everything downstream - families, ids, edges, every rule - is unchanged, so a dangling reference in a JSON tree is the same refusal as one in a `.tres` tree.
+
+```bash
+node bin/cli.mjs lint ./content --reader ./json-reader.mjs
+```
+
+The module is refused by name if it does not export a reader with `walk` and `parse`, so a typo is a usage error rather than a tree that reads as empty.
+
+### Types
+
+The package ships declarations for every subpath, so a TypeScript host gets the real shapes rather than `any`:
+
+```ts
+import { lint, readTree } from 'tresridge';
+import type { Declaration, LintResult, Tree, Reader } from 'tresridge';
+import { inferDeclaration } from 'tresridge/graph';
+```
+
+The declarations are gated against the runtime exports in both directions (`npm run test:types`), so an export added without a type, or a type naming a symbol that no longer exists, fails the battery instead of a consumer's build.
 
 ### Conformance: what tresridge claims, and what it declines
 
