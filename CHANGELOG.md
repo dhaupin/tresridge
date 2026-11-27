@@ -45,6 +45,22 @@ is a minor cut.
   declared value the module no longer exports. Names only - a wrong parameter type still
   passes, so this is a floor rather than a proof.
 
+- **The npm package link, on the docs surface, gated.** tresridge is published
+  (`npm view tresridge` resolves 1.0.0), but the docs header advertised only GitHub:
+  a reader who arrived from search had no path to `npm install`. The header now carries
+  an npm button beside the GitHub one. The URL is built from `{{ site.title }}` - the
+  docs title, itself generated from `site.config.js` - not a brand literal, because the
+  brand census refuses a hardcoded name in a structural surface and a literal a rebrand
+  would have to rename by hand is the drift the gate exists to catch. `test/npm-parity.mjs`
+  is the teeth: it proves the web nav, the docs header, and the docs-title equality that
+  makes the templated URL correct, and it bites (a stale package name, a dropped surface,
+  and a divergent docs title each red it). Wired into the battery as `[7/7]`.
+
+  Note the limit this records: tresridge consumes PUBLISHED coreforge (1.0.0), which does
+  not fan `npm_url` into `docs/_config.yml` the way the local parity branch does. The
+  templated `site.title` form is the published-consumer answer until a coreforge release
+  carries the fan-out.
+
 ## [1.0.0] - 2026-11-27
 
 The first governed cut. The grammar is frozen (SPEC v1), the release lane moves to
