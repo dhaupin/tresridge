@@ -54,8 +54,26 @@ export function nonIdValues(raw) {
  * puts the value in front of the checker, which is what lets the checker refuse it.
  */
 export function quotedValues(raw) {
+  const s = String(raw);
   const out = [];
-  for (const m of String(raw).matchAll(/"([^"]*)"/g)) out.push(m[1]);
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] !== '"') { i++; continue; }
+    let j = i + 1;
+    let value = '';
+    while (j < s.length && s[j] !== '"') {
+      // An escaped quote is part of the VALUE, not its end. The regex this replaces
+      // stopped at the backslash, so a value carrying a quote arrived as fragments -
+      // which both garbled the target in the finding and made a reference that DOES
+      // resolve read as dangling. Only the escaped quote is unwrapped; every other
+      // backslash stays in the value, because a `.tres` string may carry one literally.
+      if (s[j] === '\\' && s[j + 1] === '"') { value += '"'; j += 2; continue; }
+      value += s[j];
+      j++;
+    }
+    out.push(value);
+    i = j + 1;
+  }
   return out;
 }
 
@@ -170,6 +188,12 @@ export function edgeValues(record, edge) {
     const inner = record.nested?.get(parts[0]);
     return inner ? inner.get(parts[1]) || [] : [];
   }
+  // A path deeper than one dict level is NOT readable here, and reading the OUTER
+  // field instead judged every quoted string inside the container as if it were the
+  // edge - `edges[].meta.to` produced a finding per key in `edges`, none of them about
+  // `to`. `unknown-rule` names the path once; this returns nothing so the misdeclared
+  // edge cannot invent findings in the meantime.
+  if (parts.length > 2) return [];
   const raw = record.fields.get(parts[0]);
   return raw === undefined ? [] : [raw];
 }
@@ -211,8 +235,24 @@ export function buildContext(tree, decl) {
   return { tree, decl, declared, knownFamilies, declFamily, byFamily, byId, edgeOf };
 }
 
-/** The filename stem is the record's id (SPEC section 3). */
-const stemOf = (file) => file.split('/').pop().replace(/\.tres$/, '');
+/**
+ * The filename stem is the record's id (SPEC section 3).
+ *
+ * The suffix is the READER's, not `.tres`: the grammar is format-independent since
+ * `--reader` (section 13), so a host whose records are `npc_smith.json` must have
+ * `npc_smith` compared, not `npc_smith.json`. Stripping a hardcoded `.tres` there
+ * refused every record of every non-`.tres` tree that declares ids - the seam's
+ * own transport, refused by the one rule that compares a stem to an id.
+ */
+const stemOf = (file, suffix = '.tres') => {
+  const base = file.split('/').pop();
+  // A reader names its format either way (`.json` or `json`); both mean the same
+  // suffix, and a suffix that does not match the file falls back to the last
+  // extension rather than returning a stem that still carries one.
+  const ext = suffix && !suffix.startsWith('.') ? `.${suffix}` : suffix;
+  if (ext && base.endsWith(ext)) return base.slice(0, -ext.length);
+  return base.replace(/\.[^./]+$/, '');
+};
 
 // ---------------------------------------------------------------------------
 // The registry
@@ -256,6 +296,14 @@ export const RULES = [
         if (!ctx.knownFamilies.has(e?.family)) {
           out.push({ code: 'unknown-rule', record: `${e?.family}.${e?.field}`, detail: `edge row names family ${JSON.stringify(e?.family)}, which is not declared - the row checks nothing` });
         }
+        // The standard reads a top-level field or ONE dict level (`entries[].item_id`).
+        // A deeper path used to fall through to the outer field and judge its every
+        // quoted string, so a typo in the path turned into a wall of findings about a
+        // field the author never named.
+        const depth = canonField(e?.field ?? '').split('.').length;
+        if (typeof e?.field === 'string' && e.field && depth > 2) {
+          out.push({ code: 'unknown-rule', record: `${e?.family}.${e?.field}`, detail: `edge ${e?.family}.${e?.field}: a field MUST be top-level or ONE dict level (\`entries\` or \`entries[].item_id\`), so this row reads nothing` });
+        }
         if (!KINDS.includes(e?.kind)) {
           out.push({ code: 'unknown-rule', record: `${e?.family}.${e?.field}`, detail: `edge kind MUST be one of ${KINDS.join('/')}: ${JSON.stringify(e?.kind)}` });
         }
@@ -294,7 +342,7 @@ export const RULES = [
       // A clean verdict over zero records is vacuous, and vacuous is the shape a
       // silent pass takes. Refuse it so a wrong root cannot read as a pass.
       if (ctx.tree.records.length) return [];
-      return [{ code: 'empty-tree', record: ctx.tree.root || '(tree)', detail: `no .tres records under the root - a clean verdict here would be vacuous` }];
+      return [{ code: 'empty-tree', record: ctx.tree.root || '(tree)', detail: `no ${ctx.tree.reader || '.tres'} records under the root - a clean verdict here would be vacuous` }];
     },
   },
   {
@@ -421,8 +469,9 @@ export const RULES = [
         // family in the reference tree - a measured false positive.
         const prefix = fam?.idPrefix || '';
         const expected = prefix + r.id;
-        if (stemOf(r.file) !== expected) {
-          out.push({ code: 'filename-id-mismatch', record: r.file, detail: `declared id "${r.id}" under prefix "${prefix}" expects filename stem "${expected}", found "${stemOf(r.file)}"` });
+        const stem = stemOf(r.file, ctx.tree.suffix || ctx.tree.reader);
+        if (stem !== expected) {
+          out.push({ code: 'filename-id-mismatch', record: r.file, detail: `declared id "${r.id}" under prefix "${prefix}" expects filename stem "${expected}", found "${stem}"` });
         }
       }
       return out;

@@ -205,7 +205,11 @@ function inferPrefix(tree, family) {
   let prefix = null;
   for (const r of tree.records) {
     if (r.family !== family || !r.idDeclared) continue;
-    const stem = r.file.split('/').pop().replace(/\.tres$/, '');
+    // The stem is measured in the READER's format, not `.tres`: a JSON host would
+    // otherwise infer a prefix ending in `.json` for every family it declares ids in.
+    const base = r.file.split('/').pop();
+    const ext = tree.reader && !tree.reader.startsWith('.') ? `.${tree.reader}` : tree.reader || '.tres';
+    const stem = base.endsWith(ext) ? base.slice(0, -ext.length) : base.replace(/\.[^./]+$/, '');
     if (!stem.endsWith(r.id)) return '';
     const p = stem.slice(0, stem.length - r.id.length);
     if (prefix === null) prefix = p;
@@ -232,6 +236,19 @@ export function inferFrom(tree) {
   return inferDeclaration(tree);
 }
 
+/** Every `family.field` a tree carries, normalized the way a declared row is. */
+function fieldKeys(tree) {
+  const keys = new Set();
+  for (const r of tree.records) {
+    if (r.unparseable) continue;
+    for (const field of r.fields.keys()) keys.add(`${r.family}.${field}`);
+    for (const [outer, inner] of r.nested || []) {
+      for (const key of inner.keys()) keys.add(`${r.family}.${outer}.${key}`);
+    }
+  }
+  return keys;
+}
+
 /**
  * Diff an inferred graph against a committed declaration - the drift gate.
  *
@@ -252,13 +269,14 @@ export function inferFrom(tree) {
  * legitimate human refinement; a union that CONTAINS the inferred target agrees
  * with inference, and one that omits it does not.
  */
-export function diffDeclaration(inferred, declared, residue = { undeclared: [], probable: [] }) {
+export function diffDeclaration(inferred, declared, residue = { undeclared: [], probable: [] }, tree = null) {
   const key = (e) => `${e.family}.${String(e.field).replace(/\[\]/g, '')}`;
   const targets = (e) => new Set(Array.isArray(e.target) ? e.target : [e.target]);
   const seen = new Map((declared.edges || []).map((e) => [key(e), e]));
   const added = [];
   const removed = [];
   const changed = [];
+  const invisible = [];
   for (const e of inferred.edges || []) {
     if (!seen.has(key(e))) added.push({ family: e.family, field: e.field, target: e.target, kind: e.kind });
   }
@@ -272,21 +290,42 @@ export function diffDeclaration(inferred, declared, residue = { undeclared: [], 
   // `probable` said the values live in these families, so a declaration that points
   // elsewhere is drift the gate must still report. Blanket-exempting by name let
   // `npcs.parent_zone -> npcs` pass while the evidence said `zones`.
+  // The fields the tree still carries. A declared row that inference cannot see is only
+  // a removal if the field is GONE: a `to` field no naming rule can resolve is the
+  // declaration doing its job, and calling that drift told a host to delete the row
+  // that was enforcing the graph.
+  const present = tree ? fieldKeys(tree) : null;
   const undeclaredKeys = new Set((residue.undeclared || []).map(key));
   const probableByKey = new Map((residue.probable || []).map((r) => [key(r), r]));
-  const answersProbable = (e) => {
+  // Whether the evidence names a family the row does not. The evidence must be COVERED
+  // by the declaration, not the other way round: a declaration broader than today's data
+  // is a legitimate claim (`edges.to` may point at any family while three are used so
+  // far), and demanding the declared set be a SUBSET of the evidence reported all 23 rows
+  // of a healthy host as removed. A row the evidence escapes (`parent_zone -> npcs` while
+  // every value is a `zones` id) is drift whatever else is true of the field.
+  const evidenceEscapes = (e) => {
     const p = probableByKey.get(key(e));
     if (!p || e.kind === 'literal') return false;
-    const said = new Set(p.targets || []);
-    return [...targets(e)].every((t) => said.has(t));
+    const want = targets(e);
+    return (p.targets || []).some((t) => !want.has(t));
   };
   for (const e of declared.edges || []) {
     const i = inferredByKey.get(key(e));
     if (!i) {
-      if (undeclaredKeys.has(key(e)) || answersProbable(e)) continue;
       // A `literal` row is a human decision about a non-reference; inference never
       // produces one, so it is never drift.
       if (e.kind === 'literal') continue;
+      if (evidenceEscapes(e)) {
+        removed.push({ family: e.family, field: e.field, target: e.target, kind: e.kind });
+        continue;
+      }
+      // Evidence that the row covers, or a field a human resolved where the naming rule
+      // could not: the declaration is the answer to the residue, not drift.
+      if (probableByKey.has(key(e)) || undeclaredKeys.has(key(e))) continue;
+      if (present && present.has(key(e))) {
+        invisible.push({ family: e.family, field: e.field, target: e.target, kind: e.kind });
+        continue;
+      }
       removed.push({ family: e.family, field: e.field, target: e.target, kind: e.kind });
       continue;
     }
@@ -300,5 +339,5 @@ export function diffDeclaration(inferred, declared, residue = { undeclared: [], 
       });
     }
   }
-  return { added, removed, changed };
+  return { added, removed, changed, invisible };
 }

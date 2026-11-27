@@ -3,7 +3,7 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { getHeapStatistics } from 'node:v8';
-import { join, basename, relative, dirname } from 'node:path';
+import { join, basename, relative, dirname, isAbsolute } from 'node:path';
 
 /** Walk `root` and return every `.tres` file path, recursively. */
 export function walkTres(root) {
@@ -275,9 +275,80 @@ export function readerProblem(mod) {
   return null;
 }
 
+/**
+ * The record suffix a reader names, normalized to `.ext`.
+ *
+ * A reader carries both `name` (a label, which may be prose) and `ext` (the suffix).
+ * Every consumer that compares a filename to the format needs ONE spelling, so it is
+ * resolved here instead of in each rule. Returns '' when the reader names neither,
+ * which means "unknown format" and is answered by stripping the last extension.
+ */
+export function suffixOf(reader) {
+  const raw = reader?.ext || (reader?.name && !/\s/.test(reader.name) ? reader.name : '');
+  if (!raw) return '';
+  return raw.startsWith('.') ? raw : `.${raw}`;
+}
+
+const isMap = (v) => v instanceof Map;
+const shapeOf = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v);
+
+/**
+ * Why a `parse()` result is not a record, or null if it is.
+ *
+ * The contract is `{ id, fields: Map, nested: Map }`, and a reader that returns
+ * anything else used to fail deep inside a rule: a plain object for `fields` produced
+ * `r.fields.keys is not a function`, and a `null` record produced
+ * `Cannot read properties of null`. Both are host bugs, so both are named here, at the
+ * seam, where the message can say what the reader returned and what it must return.
+ */
+export function parseProblem(result, file = '(record)') {
+  if (!result || typeof result !== 'object') {
+    return `reader.parse(${file}) must return a record object, got ${shapeOf(result)}`;
+  }
+  if (typeof result.id !== 'string' || !result.id) {
+    return `reader.parse(${file}) must return a non-empty string \`id\` (got ${JSON.stringify(result.id)})`;
+  }
+  if (!isMap(result.fields)) {
+    return `reader.parse(${file}) must return \`fields\` as a Map (got ${shapeOf(result.fields)})`;
+  }
+  if (result.nested !== undefined && result.nested !== null && !isMap(result.nested)) {
+    return `reader.parse(${file}) must return \`nested\` as a Map or omit it (got ${shapeOf(result.nested)})`;
+  }
+  return null;
+}
+
+/**
+ * Why a `walk()` result is not a record list, or null if it is.
+ *
+ * Every record is keyed by its path RELATIVE to the tree root, and the family is the
+ * first path segment - both of which a relative path cannot produce. A reader that
+ * returned relative paths used to fail on `stat` with `ENOENT: no such file or
+ * directory, stat 'abilities/blueslip.json'`, which reads as a missing file rather
+ * than as the contract miss it is.
+ */
+export function walkProblem(files, root) {
+  if (!Array.isArray(files)) return `reader.walk(${root}) must return an array of record paths, got ${shapeOf(files)}`;
+  for (const file of files) {
+    if (typeof file !== 'string' || !file) return `reader.walk() returned ${JSON.stringify(file)}, which is not a path`;
+    if (!isAbsolute(file)) return `reader.walk() must return ABSOLUTE record paths - got ${JSON.stringify(file)}; every record is keyed by its path relative to ${root}`;
+  }
+  return null;
+}
+
 export function readTree(root, opts = {}) {
   const reader = opts.reader || tresReader;
-  const files = reader.walk(root);
+  let files;
+  try {
+    files = reader.walk(root);
+  } catch (err) {
+    // The phase is named because a reader may index the tree during `walk` (this one
+    // host's reader does), and its error then reads as a tresridge internal with no
+    // way to tell where it came from.
+    throw new Error(`reader.walk(${root}) failed: ${err.message}`);
+  }
+  const walkBad = walkProblem(files, root);
+  if (walkBad) throw new Error(walkBad);
+  const suffix = suffixOf(reader);
   // Refuse before reading, not during: a tree that will not fit is cheapest to reject
   // while nothing has been parsed. The estimate needs the source size, so it costs one
   // stat per file - 2.7s over 743k files, against the ~35s the read itself takes.
@@ -292,7 +363,15 @@ export function readTree(root, opts = {}) {
   }
 
   let sourceBytes = 0;
-  for (const file of files) sourceBytes += statSync(file).size;
+  for (const file of files) {
+    try {
+      sourceBytes += statSync(file).size;
+    } catch {
+      // A path that does not stat is a `walk` that named a file it does not have -
+      // the contract miss, not a missing record. One stat per file, as before.
+      throw new Error(`reader.walk() named ${file}, which does not exist`);
+    }
+  }
   const predicted = estimateHeap(files.length, sourceBytes);
   if (predicted > budget) {
     throw new Error(`${files.length} ${reader.name} files under ${root} hold ${Math.round(sourceBytes / 1048576)}MB of source, `
@@ -305,10 +384,31 @@ export function readTree(root, opts = {}) {
   const schemasByFamily = new Map();
   const dirsByFamily = new Map();
 
+  const parseFailures = [];
   for (const file of files) {
     const rel = relative(root, file).split('\\').join('/');
     const family = rel.split('/')[0];
-    const { id, idDeclared, scriptClass, fields, nested, unparseable } = reader.parse(file);
+    let parsed;
+    try {
+      parsed = reader.parse(file);
+    } catch (err) {
+      // A reader that throws is not a clean run: the record is unreadable, which is
+      // exactly what `unparseable-record` exists to name. Carrying the message on the
+      // record keeps the file in the finding - the thrown error alone named no file,
+      // so a single malformed record reported a JSON position and nothing to open.
+      parseFailures.push({ file: rel, message: err.message });
+      parsed = {
+        id: basename(file).replace(/\.[^./]+$/, ''),
+        idDeclared: false,
+        scriptClass: '',
+        fields: new Map(),
+        nested: new Map(),
+        unparseable: `the reader could not parse it: ${err.message}`,
+      };
+    }
+    const parseBad = parseProblem(parsed, rel);
+    if (parseBad) throw new Error(parseBad);
+    const { id, idDeclared, scriptClass, fields, nested, unparseable } = parsed;
     // The key is how a record is looked up in `byFamily`. A DECLARED id is unique or
     // the tree is refused (`duplicate-record-id`), so the id alone keys it. An id-less
     // record's stem is NOT unique - `roots/a/environment.tres` and
@@ -345,7 +445,15 @@ export function readTree(root, opts = {}) {
     dirs: [...(dirsByFamily.get(key) || [])].sort(),
   }));
 
-  return { root, families, records, idsByFamily, reader: reader.name };
+  // Every record failing is the reader, not the tree: reporting N identical
+  // `unparseable-record` findings over a broken reader buries the one fact that
+  // matters, so it is refused once, by name.
+  if (parseFailures.length && parseFailures.length === files.length) {
+    throw new Error(`reader.parse() failed for all ${files.length} record(s), so the reader is the likely cause. `
+      + `First: ${parseFailures[0].file}: ${parseFailures[0].message}`);
+  }
+
+  return { root, families, records, idsByFamily, reader: reader.name, suffix };
 }
 
 /**
@@ -375,9 +483,12 @@ export function rootProblem(tree, root) {
   }
 
   // A family key carrying a record suffix means the root IS a family directory: its
-  // children are records, not families.
-  const ext = tree.reader || '.tres';
-  const fileKeys = families.filter((f) => f.key.endsWith(ext));
+  // children are records, not families. The suffix comes from `tree.suffix`, which is
+  // the reader's EXT - `reader.name` is a label, and a label like "json records" made
+  // this guard compare every family against a string no filename ends in, so a root
+  // one level too low read as a plausible tree.
+  const ext = tree.suffix || '';
+  const fileKeys = ext ? families.filter((f) => f.key.endsWith(ext)) : [];
   if (fileKeys.length) {
     return {
       code: 'not-a-tree-root',

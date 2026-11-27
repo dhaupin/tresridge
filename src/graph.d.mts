@@ -57,8 +57,11 @@ export declare function diffDeclaration(
   inferred: Declaration,
   declared: Declaration,
   residue?: Residue,
+  tree?: Tree | null,
 ): {
   added: DeclaredEdge[];
   removed: DeclaredEdge[];
   changed: ChangedEdge[];
+  /** Declared rows whose field is still in the tree but that inference cannot see. */
+  invisible: DeclaredEdge[];
 };

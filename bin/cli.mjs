@@ -47,13 +47,29 @@ const USAGE = `tresridge - the .tres relation standard
 
     Exit: 0 clean, 1 violations, 2 usage.`;
 
+/**
+ * Exit with `code` once stdout has drained.
+ *
+ * `process.exit()` does not wait for a pipe, and a pipe is how every host reads this
+ * tool: `--json` over `spawnSync` was cut off mid-string at ~146KB, so the caller's
+ * `JSON.parse` failed on a payload the tool had produced in full. A verdict is the
+ * product here, so it leaves whole or not at all.
+ */
+function exit(code) {
+  process.exitCode = code;
+  if (process.stdout.writableLength === 0) process.exit(code);
+  // The empty write queues behind everything already buffered; its callback fires
+  // when the pipe has taken it all.
+  process.stdout.write('', () => process.exit(code));
+}
+
 const argv = process.argv.slice(2);
 const cmd = argv[0];
 const treeArg = argv[1];
 const flag = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
 const has = (name) => argv.includes(name);
 
-if (!cmd || cmd === '--help' || cmd === '-h') { console.log(USAGE); process.exit(cmd ? 0 : 2); }
+if (!cmd || cmd === '--help' || cmd === '-h') { console.log(USAGE); exit(cmd ? 0 : 2); }
 
 /**
  * Print findings, capped per code unless `--all`.
@@ -82,7 +98,7 @@ const printFindings = (rows, label, lineOf) => {
 if (cmd === '--version' || cmd === '-v') {
   const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   console.log(pkg.version);
-  process.exit(0);
+  exit(0);
 }
 
 // `rules` reads only the vocabulary - it needs no tree.
@@ -92,7 +108,7 @@ if (cmd === 'rules') {
     console.log(`tresridge rules: ${VOCABULARY.length} refusal codes (spec/refusals.json)`);
     for (const c of VOCABULARY) console.log(`  ${c}`);
   }
-  process.exit(0);
+  exit(0);
 }
 
 // `lint-packs` judges a packs tree, not a .tres tree, so it runs before the
@@ -101,7 +117,7 @@ if (cmd === 'rules') {
 if (cmd === 'lint-packs') {
   const dirArg = treeArg && !treeArg.startsWith('-') ? treeArg : 'packs/public';
   const dir = isAbsolute(dirArg) ? dirArg : resolve(process.cwd(), dirArg);
-  if (!existsSync(dir)) { console.error(`tresridge: packs dir not found: ${dirArg}`); process.exit(2); }
+  if (!existsSync(dir)) { console.error(`tresridge: packs dir not found: ${dirArg}`); exit(2); }
   const deep = has('--deep');
   const violations = [];
   const warnings = [];
@@ -183,13 +199,13 @@ if (cmd === 'lint-packs') {
     for (const v of violations) console.log(`  FAIL  ${v.pack} [${v.code}]: ${v.detail}`);
     console.log(`  ${violations.length} violation(s), ${warnings.length} warning(s)`);
   }
-  process.exit(violations.length ? 1 : 0);
+  exit(violations.length ? 1 : 0);
 }
 
-if (!treeArg || treeArg.startsWith('-')) { console.error(USAGE); process.exit(2); }
+if (!treeArg || treeArg.startsWith('-')) { console.error(USAGE); exit(2); }
 
 const root = resolve(process.cwd(), treeArg);
-if (!existsSync(root)) { console.error(`tresridge: tree not found: ${treeArg}`); process.exit(2); }
+if (!existsSync(root)) { console.error(`tresridge: tree not found: ${treeArg}`); exit(2); }
 
 // The declaration default is the tree's OWN relations.json before the cwd's: the
 // declaration is the tree's artifact (SPEC section 1), so `doctor data/` must find
@@ -206,16 +222,34 @@ function resolveDecl(spec) {
 }
 const declPath = resolveDecl(flag('--decl')).path;
 
+/**
+ * Read a declaration, naming the file when it is not JSON.
+ *
+ * `JSON.parse` reports a position and nothing else, so a malformed declaration - the
+ * one file every command needs - failed with `Expected double-quoted property name in
+ * JSON at position 22` and no path to open. The declaration is the contract; the
+ * message has to say which contract.
+ */
+function readDeclaration(path) {
+  const raw = readFileSync(path, 'utf8');
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error(`tresridge: declaration ${path} is not valid JSON: ${err.message}`);
+    exit(2);
+  }
+}
+
 
 // The extension surface: a host module exporting { rules: [...] }. Loaded by
 // absolute path (never a bare specifier), and only ever ADDED to the registry.
 async function loadHostRules(spec) {
   if (!spec) return [];
   const p = isAbsolute(spec) ? spec : resolve(process.cwd(), spec);
-  if (!existsSync(p)) { console.error(`tresridge: --rules module not found: ${spec}`); process.exit(2); }
+  if (!existsSync(p)) { console.error(`tresridge: --rules module not found: ${spec}`); exit(2); }
   const mod = await import(pathToFileURL(p).href);
   const rules = mod.rules || mod.default?.rules || [];
-  if (!Array.isArray(rules)) { console.error(`tresridge: --rules module must export { rules: [...] }`); process.exit(2); }
+  if (!Array.isArray(rules)) { console.error(`tresridge: --rules module must export { rules: [...] }`); exit(2); }
   return rules;
 }
 const hostRules = await loadHostRules(flag('--rules'));
@@ -226,10 +260,10 @@ const hostRules = await loadHostRules(flag('--rules'));
 async function loadReader(spec) {
   if (!spec) return undefined;
   const p = isAbsolute(spec) ? spec : resolve(process.cwd(), spec);
-  if (!existsSync(p)) { console.error(`tresridge: --reader module not found: ${spec}`); process.exit(2); }
+  if (!existsSync(p)) { console.error(`tresridge: --reader module not found: ${spec}`); exit(2); }
   const mod = await import(pathToFileURL(p).href);
   const bad = readerProblem(mod);
-  if (bad) { console.error(`tresridge: --reader module ${bad}`); process.exit(2); }
+  if (bad) { console.error(`tresridge: --reader module ${bad}`); exit(2); }
   return mod.reader || mod.default;
 }
 const reader = await loadReader(flag('--reader'));
@@ -243,7 +277,7 @@ function packSpecs() {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] !== '--packs') continue;
     const v = argv[i + 1];
-    if (!v || v.startsWith('-')) { console.error('tresridge: --packs needs a directory'); process.exit(2); }
+    if (!v || v.startsWith('-')) { console.error('tresridge: --packs needs a directory'); exit(2); }
     out.push(v);
   }
   return out;
@@ -258,7 +292,7 @@ async function loadPacks() {
   const skipped = [];
   for (const spec of specs) {
     const abs = isAbsolute(spec) ? spec : resolve(process.cwd(), spec);
-    if (!existsSync(abs)) { console.error(`tresridge: --packs path not found: ${spec}`); process.exit(2); }
+    if (!existsSync(abs)) { console.error(`tresridge: --packs path not found: ${spec}`); exit(2); }
     // A dir that carries pack.json is one pack; otherwise it is a packs root.
     const isOnePack = existsSync(join(abs, 'pack.json'));
     const result = isOnePack
@@ -270,7 +304,7 @@ async function loadPacks() {
       const checks = checksOf(pack);
       if (!checks.length) {
         console.error(`tresridge: pack ${pack.name}: entry exposes no checks[] - a check-profile pack must declare at least one`);
-        process.exit(2);
+        exit(2);
       }
       for (const c of checks) rules.push({ ...c, pack: pack.name });
       packs.push({ name: pack.name, version: pack.spec.version, checks: checks.length, source: pack.source });
@@ -294,16 +328,16 @@ try {
   if (rootErr) {
     console.error(`tresridge: ${rootErr.code}: ${rootErr.detail}`);
     for (const h of rootErr.hints) console.error(`  try: ${h}`);
-    process.exit(2);
+    exit(2);
   }
 
   if (cmd === 'lint') {
-    if (!existsSync(declPath)) { console.error(`tresridge: declaration not found: ${declPath} (run \`tresridge graph\` to draft one)`); process.exit(2); }
-    const decl = JSON.parse(readFileSync(declPath, 'utf8'));
+    if (!existsSync(declPath)) { console.error(`tresridge: declaration not found: ${declPath} (run \`tresridge graph\` to draft one)`); exit(2); }
+    const decl = readDeclaration(declPath);
     const declErrors = validateDeclaration(decl, { vocabulary: mergedVocabulary });
     if (declErrors.length) {
       for (const e of declErrors) console.error(`  DECL ${e}`);
-      process.exit(1);
+      exit(1);
     }
     const result = lint(tree, decl, lintOpts);
     if (has('--json')) { console.log(JSON.stringify(result, null, 2)); }
@@ -313,7 +347,7 @@ try {
         printFindings(result.violations, 'FAIL', (v) => `  FAIL  ${v.code}  ${v.record}${v.field ? ' .' + v.field : ''}  ${v.detail}`);
       console.log(`  ${result.violations.length} violation(s), ${result.warnings.length} warning(s)`);
     }
-    process.exit(result.violations.length ? 1 : 0);
+    exit(result.violations.length ? 1 : 0);
   }
 
   if (cmd === 'graph') {
@@ -333,32 +367,33 @@ try {
       // still see the row to exempt it). Only the REPORT shrinks.
       let reportable = residue.probable || [];
       if (existsSync(knownPath) && residue.probable) {
-        const known = JSON.parse(readFileSync(knownPath, 'utf8'));
+        const known = readDeclaration(knownPath);
         // The declaration is read RAW here (it may be the draft target, not a lint
         // input), so validate it before dereferencing `edges`. Without this a
         // hand-edited declaration turns a named shape refusal into a raw TypeError.
         const knownErrors = validateDeclaration(known, { vocabulary: mergedVocabulary });
         if (knownErrors.length) {
           for (const e of knownErrors) console.error(`  DECL ${e}`);
-          process.exit(1);
+          exit(1);
         }
         const named = new Set((known.edges || []).map((e) => `${e.family}.${String(e.field).replace(/\[\]/g, '')}`));
         reportable = residue.probable.filter((p) => !named.has(`${p.family}.${p.field}`));
       }
       if (against) {
         const againstPath = isAbsolute(against) ? against : resolve(process.cwd(), against);
-        if (!existsSync(againstPath)) { console.error(`tresridge: --against declaration not found: ${against}`); process.exit(2); }
-        const decl = JSON.parse(readFileSync(againstPath, 'utf8'));
-        const { added, removed, changed } = diffDeclaration(declaration, decl, residue);
+        if (!existsSync(againstPath)) { console.error(`tresridge: --against declaration not found: ${against}`); exit(2); }
+        const decl = readDeclaration(againstPath);
+        const { added, removed, changed, invisible } = diffDeclaration(declaration, decl, residue, tree);
         if (has('--json')) {
-          console.log(JSON.stringify({ added, removed, changed }, null, 2));
+          console.log(JSON.stringify({ added, removed, changed, invisible }, null, 2));
         } else {
           for (const e of added) console.log(`  + ${e.family}.${e.field} -> ${JSON.stringify(e.target)} (${e.kind})`);
           for (const e of removed) console.log(`  - ${e.family}.${e.field} -> ${JSON.stringify(e.target)} (${e.kind})`);
           for (const e of changed) console.log(`  ~ ${e.family}.${e.field}: declared ${JSON.stringify(e.declared.target)} (${e.declared.kind}), inferred ${JSON.stringify(e.inferred.target)} (${e.inferred.kind})`);
-          console.log(`tresridge graph --against: ${added.length} added, ${removed.length} removed, ${changed.length} changed`);
+          for (const e of invisible) console.log(`  ? ${e.family}.${e.field} -> ${JSON.stringify(e.target)} (${e.kind}) - declared, and the field is still in the tree; the naming rule cannot see it, so it is not drift`);
+          console.log(`tresridge graph --against: ${added.length} added, ${removed.length} removed, ${changed.length} changed, ${invisible.length} not inferable`);
         }
-        process.exit(added.length || removed.length || changed.length ? 1 : 0);
+        exit(added.length || removed.length || changed.length ? 1 : 0);
       }
     const out = flag('--out');
     if (out) writeFileSync(out, JSON.stringify(declaration, null, 2) + '\n');
@@ -383,7 +418,7 @@ try {
       }
       if (out) console.log(`  draft written: ${out}`);
     }
-    process.exit(0);
+    exit(0);
   }
 
   if (cmd === 'doctor') {
@@ -393,13 +428,13 @@ try {
     // That is the same silent pass the root guard exists to stop.
     if (!existsSync(declPath)) {
       console.error(`tresridge: declaration not found: ${declPath} (run \`tresridge graph --out ${declPath}\` to draft one)`);
-      process.exit(2);
+      exit(2);
     }
-    const decl = JSON.parse(readFileSync(declPath, 'utf8'));
+    const decl = readDeclaration(declPath);
     const declErrors = validateDeclaration(decl, { vocabulary: mergedVocabulary });
     if (declErrors.length) {
       for (const e of declErrors) console.error(`  DECL ${e}`);
-      process.exit(1);
+      exit(1);
     }
     const result = lint(tree, decl, lintOpts);
     if (has('--json')) {
@@ -446,11 +481,11 @@ try {
         console.log('  run `tresridge lint <tree> --all` for every finding, or --json for the machine read');
       }
     }
-    process.exit(result.violations.length ? 1 : 0);
+    exit(result.violations.length ? 1 : 0);
   }
 
-  console.error(USAGE); process.exit(2);
+  console.error(USAGE); exit(2);
 } catch (err) {
   console.error(`tresridge: ${err.message}`);
-  process.exit(2);
+  exit(2);
 }

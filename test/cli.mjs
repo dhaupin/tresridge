@@ -408,6 +408,18 @@ try {
     check('doctor does not leak a raw TypeError', !/is not a function|Cannot read/.test(r.err + r.out), (r.err + r.out).trim());
   }
 
+  // A declaration that is not JSON at all used to report the parser's position and
+  // nothing else, so the one file every command needs had no name in the error.
+  {
+    const d = make(CLEAN);
+    writeFileSync(join(d, 'relations.json'), '{ "schemaVersion": 1, oops }');
+    for (const cmd of ['lint', 'doctor']) {
+      const r = cli([cmd, d]);
+      expectCode(`${cmd} with a non-JSON declaration exits 2`, r, 2);
+      check(`${cmd} names the declaration file it could not read`, /declaration .*relations\.json is not valid JSON/.test(r.err), r.err.trim());
+    }
+  }
+
   // `graph` reads the declaration RAW (it may be the draft target), so it must
   // validate before dereferencing `edges` - the same named refusal `lint` and
   // `doctor` give, not a raw TypeError from the `.map`.
@@ -961,6 +973,87 @@ export const reader = {
     dirs.push(unquotedDir);
     const unquoted = cli(['lint', unquotedDir, '--reader', join(unquotedDir, 'reader.mjs')]);
     check('unquoted reader values do not read as resolved edges', !/1 edges/.test(unquoted.out), unquoted.out.trim());
+  }
+
+  // --- the reader's SUFFIX, not `.tres` (issue: the seam's own transport) -----
+  // The grammar went format-independent with `--reader`, but three rules kept
+  // `.tres` hardcoded. The worst: `filename-id-mismatch` compared a declared id to
+  // a stem stripped of `.tres`, so EVERY record of a non-`.tres` tree that declares
+  // ids was refused - the transport the seam exists for, refused by the seam.
+  {
+    const declIdReader = `
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, basename } from 'node:path';
+export const reader = {
+  name: '.json',
+  ext: '.json',
+  walk(root) {
+    const out = [];
+    const visit = (d) => {
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        const f = join(d, e.name);
+        if (e.isDirectory()) visit(f);
+        else if (e.name.endsWith('.json') && e.name !== 'relations.json') out.push(f);
+      }
+    };
+    visit(root);
+    return out.sort();
+  },
+  parse(file) {
+    const doc = JSON.parse(readFileSync(file, 'utf8'));
+    const fields = new Map();
+    for (const [k, v] of Object.entries(doc)) if (k !== 'id') fields.set(k, JSON.stringify(v));
+    // A host with an id field DECLARES it. The filename is npc_smith.json.
+    return { id: doc.id, idDeclared: doc.id !== undefined, scriptClass: '', fields, nested: new Map() };
+  },
+};
+`;
+    const ID_DECL = JSON.stringify({
+      schemaVersion: 1,
+      families: [{ key: 'npcs', schema: '', idPrefix: '' }],
+      edges: [],
+    }, null, 2) + '\n';
+
+    const declared = tree({
+      'reader.mjs': declIdReader,
+      'relations.json': ID_DECL,
+      'npcs/npc_smith.json': '{ "id": "npc_smith", "name": "Smith" }\n',
+      'npcs/npc_baker.json': '{ "id": "npc_baker", "name": "Baker" }\n',
+    });
+    dirs.push(declared);
+    const declaredRun = cli(['lint', declared, '--reader', join(declared, 'reader.mjs')]);
+    check('a declared-id JSON tree lints clean through --reader', declaredRun.code === 0,
+      declaredRun.out.trim() + declaredRun.err.trim());
+    check('the declared-id JSON tree reports both records', /2 records/.test(declaredRun.out), declaredRun.out.trim());
+
+    // A real mismatch is still refused: the fix must not silence the rule.
+    const mismatch = tree({
+      'reader.mjs': declIdReader,
+      'relations.json': ID_DECL,
+      'npcs/npc_smith.json': '{ "id": "npc_baker", "name": "Smith" }\n',
+    });
+    dirs.push(mismatch);
+    const mismatchRun = cli(['lint', mismatch, '--reader', join(mismatch, 'reader.mjs')]);
+    check('a declared id that disagrees with its stem is still refused', mismatchRun.code === 1 && /filename-id-mismatch/.test(mismatchRun.out), mismatchRun.out.trim());
+    check('the mismatch detail names the stem, not the file name', /found "npc_smith"/.test(mismatchRun.out) && !/found "npc_smith\.json"/.test(mismatchRun.out), mismatchRun.out.trim());
+
+    // A prefixed family still infers its prefix from a `.json` stem, not from one
+    // ending in `.json` - the same hardcode, one rule over.
+    const prefixed = tree({
+      'reader.mjs': declIdReader,
+      'relations.json': JSON.stringify({ schemaVersion: 1, families: [{ key: 'npcs', schema: '', idPrefix: '' }], edges: [] }),
+      'npcs/npc_smith.json': '{ "id": "smith" }\n',
+      'npcs/npc_baker.json': '{ "id": "baker" }\n',
+    });
+    dirs.push(prefixed);
+    const inferred = cli(['graph', prefixed, '--reader', join(prefixed, 'reader.mjs'), '--json']);
+    check('graph infers an idPrefix from a .json stem', /"idPrefix":\s*"npc_"/.test(inferred.out), inferred.out.trim().slice(0, 200));
+
+    // The empty-tree message names the reader's suffix, not `.tres`.
+    const emptyJson = tree({ 'reader.mjs': declIdReader, 'relations.json': ID_DECL, 'npcs/notes.txt': 'not a record\n' });
+    dirs.push(emptyJson);
+    const emptyRun = cli(['lint', emptyJson, '--reader', join(emptyJson, 'reader.mjs')]);
+    check('an empty JSON tree names .json, not .tres', /no \.json records/.test(emptyRun.out + emptyRun.err), (emptyRun.out + emptyRun.err).trim());
   }
 
   // --- the package API surface (issue #24) ---------------------------------
