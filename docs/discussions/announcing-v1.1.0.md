@@ -58,7 +58,7 @@ The declarations are gated by `npm run test:types`, which compares them against 
 
 Every figure here came from a run against the built 1.1.0 tarball, not from memory.
 
-The tarball is 22 files, 64375 bytes, and all four `.d.mts` files ship. A clean install answers `--version` with `1.1.0` and resolves `types` to `./src/lint.d.mts`. The committed fixture measures 6 families, 13 records, and 11 edges, and lints clean at 0 violations and 0 warnings. The refusal vocabulary is 15 codes. `lint-packs --deep` on the shipped reference pack reports 1 pack checked, 0 violations.
+The tarball is 22 files, 64437 bytes, and all four `.d.mts` files ship. A clean install answers `--version` with `1.1.0` and resolves `types` to `./src/lint.d.mts`. The committed fixture measures 6 families, 13 records, and 11 edges, and lints clean at 0 violations and 0 warnings. The refusal vocabulary is 15 codes. `lint-packs --deep` on the shipped reference pack reports 1 pack checked, 0 violations.
 
 The reader seam was exercised end to end from the installed package: `graph` drafted a declaration from a JSON tree, `lint` judged it, and a deliberately dangling reference failed as it should.
 
